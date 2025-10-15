@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { useAccount, useWriteContract, useReadContract } from "wagmi";
+import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnect } from "wagmi";
+import { injected } from "wagmi/connectors";
 import styles from "./page.module.css";
 import { encryptSecret, decryptSecret, validateSecret, cleanSecret } from "../lib/crypto";
 import { generateTOTP, getTimeRemaining } from "../lib/totp";
@@ -17,6 +18,8 @@ interface DecryptedAccount {
 export default function Home() {
   const { isFrameReady, setFrameReady } = useMiniKit();
   const { address, isConnected } = useAccount();
+  const { connect } = useConnect();
+  const { disconnect } = useDisconnect();
   const [accounts, setAccounts] = useState<DecryptedAccount[]>([]);
   const [timeRemaining, setTimeRemaining] = useState(30);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -31,6 +34,14 @@ export default function Home() {
       setFrameReady();
     }
   }, [setFrameReady, isFrameReady]);
+
+  // Auto-connect to injected provider on mount
+  useEffect(() => {
+    if (!isConnected && isFrameReady) {
+      // Attempt to connect automatically
+      connect({ connector: injected() });
+    }
+  }, [isConnected, isFrameReady, connect]);
 
   // Contract interactions
   const { writeContract } = useWriteContract();
@@ -192,17 +203,30 @@ export default function Home() {
     navigator.clipboard.writeText(code);
   };
 
+  const handleConnect = () => {
+    connect({ connector: injected() });
+  };
+
+  const handleDisconnect = () => {
+    disconnect();
+  };
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
         <h1 className={styles.title}>Base Auth</h1>
         {isConnected && address ? (
-          <div className={styles.walletInfo}>
+          <div 
+            className={styles.walletInfo}
+            onClick={handleDisconnect}
+            style={{ cursor: 'pointer' }}
+            title="Click to disconnect"
+          >
             <span>🔗</span>
             <span className={styles.walletAddress}>{formatAddress(address)}</span>
           </div>
         ) : (
-          <button className={styles.connectButton}>
+          <button className={styles.connectButton} onClick={handleConnect}>
             Connect Wallet
           </button>
         )}
