@@ -1,120 +1,355 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useQuickAuth,useMiniKit } from "@coinbase/onchainkit/minikit";
-import { useRouter } from "next/navigation";
-import { minikitConfig } from "../minikit.config";
+import { useState, useEffect, useCallback } from "react";
+import { useMiniKit } from "@coinbase/onchainkit/minikit";
+import { useAccount, useWriteContract, useReadContract } from "wagmi";
 import styles from "./page.module.css";
+import { encryptSecret, decryptSecret, validateSecret, cleanSecret } from "../lib/crypto";
+import { generateTOTP, getTimeRemaining } from "../lib/totp";
+import { AUTHENTICATOR_ABI, AUTHENTICATOR_CONTRACT_ADDRESS, type Account } from "../lib/contract";
 
-interface AuthResponse {
-  success: boolean;
-  user?: {
-    fid: number; // FID is the unique identifier for the user
-    issuedAt?: number;
-    expiresAt?: number;
-  };
-  message?: string; // Error messages come as 'message' not 'error'
+interface DecryptedAccount {
+  accountName: string;
+  secret: string;
+  code: string;
+  index: number;
 }
 
-
 export default function Home() {
-  const { isFrameReady, setFrameReady, context } = useMiniKit();
-  const [email, setEmail] = useState("");
+  const { isFrameReady, setFrameReady } = useMiniKit();
+  const { address, isConnected } = useAccount();
+  const [accounts, setAccounts] = useState<DecryptedAccount[]>([]);
+  const [timeRemaining, setTimeRemaining] = useState(30);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newAccountName, setNewAccountName] = useState("");
+  const [newSecret, setNewSecret] = useState("");
   const [error, setError] = useState("");
-  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Initialize the  miniapp
+  // Initialize the miniapp
   useEffect(() => {
     if (!isFrameReady) {
       setFrameReady();
     }
   }, [setFrameReady, isFrameReady]);
- 
+
+  // Contract interactions
+  const { writeContract } = useWriteContract();
   
+  const { data: secretsData, refetch: refetchSecrets } = useReadContract({
+    address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+    abi: AUTHENTICATOR_ABI,
+    functionName: "getSecrets",
+    account: address,
+    query: {
+      enabled: isConnected && !!address,
+    },
+  });
 
-  // If you need to verify the user's identity, you can use the useQuickAuth hook.
-  // This hook will verify the user's signature and return the user's FID. You can update
-  // this to meet your needs. See the /app/api/auth/route.ts file for more details.
-  // Note: If you don't need to verify the user's identity, you can get their FID and other user data
-  // via `context.user.fid`.
-  // const { data, isLoading, error } = useQuickAuth<{
-  //   userFid: string;
-  // }>("/api/auth");
+  // Load and decrypt accounts from blockchain
+  const loadAccounts = useCallback(async () => {
+    if (!secretsData || !address) {
+      setAccounts([]);
+      return;
+    }
 
-  const { data: authData, isLoading: isAuthLoading, error: authError } = useQuickAuth<AuthResponse>(
-    "/api/auth",
-    { method: "GET" }
-  );
+    try {
+      const decrypted: DecryptedAccount[] = [];
+      
+      for (let i = 0; i < (secretsData as Account[]).length; i++) {
+        const account = (secretsData as Account[])[i];
+        try {
+          const decryptedSecret = decryptSecret(account.encryptedSecret, address);
+          const code = generateTOTP(decryptedSecret, account.accountName);
+          
+          decrypted.push({
+            accountName: account.accountName,
+            secret: decryptedSecret,
+            code,
+            index: i,
+          });
+        } catch (err) {
+          console.error(`Failed to decrypt account ${account.accountName}:`, err);
+        }
+      }
+      
+      setAccounts(decrypted);
+    } catch (err) {
+      console.error("Error loading accounts:", err);
+    }
+  }, [secretsData, address]);
 
-  const validateEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
+  useEffect(() => {
+    loadAccounts();
+  }, [loadAccounts]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Update TOTP codes every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const remaining = getTimeRemaining();
+      setTimeRemaining(remaining);
+
+      // Regenerate codes when timer resets
+      if (remaining === 30 && accounts.length > 0) {
+        setAccounts((prev) =>
+          prev.map((account) => ({
+            ...account,
+            code: generateTOTP(account.secret, account.accountName),
+          }))
+        );
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [accounts.length]);
+
+  const handleAddAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    // Check authentication first
-    if (isAuthLoading) {
-      setError("Please wait while we verify your identity...");
+    if (!address) {
+      setError("Please connect your wallet first");
       return;
     }
 
-    if (authError || !authData?.success) {
-      setError("Please authenticate to join the waitlist");
+    if (!newAccountName.trim()) {
+      setError("Please enter an account name");
       return;
     }
 
-    if (!email) {
-      setError("Please enter your email address");
+    if (!newSecret.trim()) {
+      setError("Please enter a 2FA secret");
       return;
     }
 
-    if (!validateEmail(email)) {
-      setError("Please enter a valid email address");
-      return;
-    }
-
-    // TODO: Save email to database/API with user FID
-    console.log("Valid email submitted:", email);
-    console.log("User authenticated:", authData.user);
+    const cleanedSecret = cleanSecret(newSecret);
     
-    // Navigate to success page
-    router.push("/success");
+    if (!validateSecret(cleanedSecret)) {
+      setError("Invalid 2FA secret format. Please enter a valid base32 encoded secret.");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      // Encrypt the secret with the user's wallet address
+      const encrypted = encryptSecret(cleanedSecret, address);
+
+      // Write to the smart contract
+      await writeContract({
+        address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+        abi: AUTHENTICATOR_ABI,
+        functionName: "addSecret",
+        args: [newAccountName.trim(), encrypted],
+      });
+
+      // Wait a bit and refetch
+      setTimeout(() => {
+        refetchSecrets();
+        setShowAddModal(false);
+        setNewAccountName("");
+        setNewSecret("");
+        setIsLoading(false);
+      }, 2000);
+    } catch (err: unknown) {
+      console.error("Error adding account:", err);
+      if (err instanceof Error) {
+        setError(`Failed to add account: ${err.message}`);
+      } else {
+        setError("Failed to add account. Please try again.");
+      }
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async (index: number) => {
+    if (!address) return;
+
+    try {
+      setIsLoading(true);
+      
+      await writeContract({
+        address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+        abi: AUTHENTICATOR_ABI,
+        functionName: "removeSecret",
+        args: [BigInt(index)],
+      });
+
+      setTimeout(() => {
+        refetchSecrets();
+        setIsLoading(false);
+      }, 2000);
+    } catch (err) {
+      console.error("Error deleting account:", err);
+      setIsLoading(false);
+    }
+  };
+
+  const formatAddress = (addr: string) => {
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
+
+  const copyToClipboard = (code: string) => {
+    navigator.clipboard.writeText(code);
   };
 
   return (
     <div className={styles.container}>
-      <button className={styles.closeButton} type="button">
-        ✕
-      </button>
-      
-      <div className={styles.content}>
-        <div className={styles.waitlistForm}>
-          <h1 className={styles.title}>Join {minikitConfig.miniapp.name.toUpperCase()}</h1>
-          
-          <p className={styles.subtitle}>
-             Hey {context?.user?.displayName || "there"}, Get early access and be the first to experience the future of<br />
-            crypto marketing strategy.
-          </p>
-
-          <form onSubmit={handleSubmit} className={styles.form}>
-            <input
-              type="email"
-              placeholder="Your amazing email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={styles.emailInput}
-            />
-            
-            {error && <p className={styles.error}>{error}</p>}
-            
-            <button type="submit" className={styles.joinButton}>
-              JOIN WAITLIST
-            </button>
-          </form>
-        </div>
+      <div className={styles.header}>
+        <h1 className={styles.title}>Base Auth</h1>
+        {isConnected && address ? (
+          <div className={styles.walletInfo}>
+            <span>🔗</span>
+            <span className={styles.walletAddress}>{formatAddress(address)}</span>
+          </div>
+        ) : (
+          <button className={styles.connectButton}>
+            Connect Wallet
+          </button>
+        )}
       </div>
+
+      {!isConnected ? (
+        <div className={styles.emptyState}>
+          <div className={styles.emptyIcon}>🔐</div>
+          <h2 className={styles.emptyTitle}>Connect Your Wallet</h2>
+          <p className={styles.emptyDescription}>
+            Connect your wallet to start managing your 2FA accounts on-chain securely.
+          </p>
+        </div>
+      ) : accounts.length === 0 ? (
+        <div className={styles.emptyState}>
+          <div className={styles.emptyIcon}>🔑</div>
+          <h2 className={styles.emptyTitle}>No 2FA Accounts Yet</h2>
+          <p className={styles.emptyDescription}>
+            Add your first 2FA account to start generating secure one-time codes.
+          </p>
+        </div>
+      ) : (
+        <div className={styles.accountsList}>
+          {accounts.map((account) => (
+            <div key={account.index} className={styles.accountCard}>
+              <div className={styles.accountInfo}>
+                <div className={styles.accountName}>{account.accountName}</div>
+                <div className={styles.codeDisplay}>
+                  <button
+                    className={styles.code}
+                    onClick={() => copyToClipboard(account.code)}
+                    title="Click to copy"
+                    type="button"
+                  >
+                    {account.code}
+                  </button>
+                  <div className={styles.timer}>
+                    <svg className={styles.timerCircle} viewBox="0 0 36 36">
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="16"
+                        fill="none"
+                        stroke="var(--gray-15)"
+                        strokeWidth="2"
+                      />
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="16"
+                        fill="none"
+                        stroke="var(--base-blue)"
+                        strokeWidth="2"
+                        strokeDasharray={`${(timeRemaining / 30) * 100.5} 100.5`}
+                        strokeLinecap="round"
+                        transform="rotate(-90 18 18)"
+                      />
+                      <text className={styles.timerText} x="50%" y="50%" textAnchor="middle" dy=".3em">
+                        {timeRemaining}
+                      </text>
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <button
+                className={styles.deleteButton}
+                onClick={() => handleDeleteAccount(account.index)}
+                disabled={isLoading}
+                type="button"
+                title="Delete account"
+              >
+                🗑️
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isConnected && (
+        <button
+          className={styles.addButton}
+          onClick={() => setShowAddModal(true)}
+          disabled={isLoading}
+          type="button"
+          title="Add new 2FA account"
+        >
+          +
+        </button>
+      )}
+
+      {showAddModal && (
+        <div className={styles.modal} onClick={() => setShowAddModal(false)}>
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h2 className={styles.modalTitle}>Add 2FA Account</h2>
+              <button
+                className={styles.closeButton}
+                onClick={() => setShowAddModal(false)}
+                type="button"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddAccount} className={styles.form}>
+              <div className={styles.formGroup}>
+                <label htmlFor="accountName" className={styles.label}>
+                  Account Name
+                </label>
+                <input
+                  id="accountName"
+                  type="text"
+                  placeholder="e.g., Google, GitHub, Twitter"
+                  value={newAccountName}
+                  onChange={(e) => setNewAccountName(e.target.value)}
+                  className={styles.input}
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div className={styles.formGroup}>
+                <label htmlFor="secret" className={styles.label}>
+                  2FA Secret Key
+                </label>
+                <textarea
+                  id="secret"
+                  placeholder="Paste your 2FA secret key here (base32 encoded)"
+                  value={newSecret}
+                  onChange={(e) => setNewSecret(e.target.value)}
+                  className={styles.textarea}
+                  disabled={isLoading}
+                />
+                <p className={styles.hint}>
+                  The secret key is usually provided as a base32 encoded string when you set up
+                  2FA. It will be encrypted and stored on-chain.
+                </p>
+              </div>
+
+              {error && <div className={styles.error}>{error}</div>}
+
+              <button type="submit" className={styles.submitButton} disabled={isLoading}>
+                {isLoading ? "Adding..." : "Add Account"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

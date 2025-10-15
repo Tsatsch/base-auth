@@ -1,14 +1,18 @@
 @layer base {
   :root {
-    --background: #ffffff;
-    --foreground: #171717;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --background: #0a0a0a;
-      --foreground: #ededed;
-    }
+    /* Base Brand Colors */
+    --base-blue: rgb(0, 0, 255);
+    --base-white: rgb(255, 255, 255);
+    --gray-100: rgb(10, 11, 13);
+    --gray-70: rgb(82, 88, 102);
+    --gray-30: rgb(177, 183, 195);
+    --gray-15: rgb(222, 225, 231);
+    --gray-5: rgb(247, 248, 249);
+    
+    --background: var(--base-white);
+    --foreground: var(--gray-100);
+    --border: var(--gray-15);
+    --accent: var(--base-blue);
   }
 
   html,
@@ -26,19 +30,13 @@
   }
 
   code {
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: var(--gray-5);
     border-radius: 6px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--border);
     font-family: var(--font-source-code-pro), monospace;
     font-size: 0.875rem;
     padding: 0.25rem 0.5rem calc(0.25rem + 2px);
-  }
-
-  @media (prefers-color-scheme: dark) {
-    code {
-      background-color: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
+    color: var(--gray-100);
   }
 
   * {
@@ -52,9 +50,11 @@
     text-decoration: none;
   }
 
-  @media (prefers-color-scheme: dark) {
-    html {
-      color-scheme: dark;
-    }
+  button {
+    font-family: var(--font-inter), sans-serif;
+  }
+
+  input {
+    font-family: var(--font-inter), sans-serif;
   }
 }
