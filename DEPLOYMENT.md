@@ -54,13 +54,28 @@ npx hardhat init
 npx hardhat run scripts/deploy.ts --network base
 ```
 
-## Step 2: Update Contract Address
+## Step 2: Configure Environment Variables
 
-After deploying the contract, update the contract address in `lib/contract.ts`:
+After deploying the contract, create a `.env.local` file by copying from `.env.example`:
 
-```typescript
-export const AUTHENTICATOR_CONTRACT_ADDRESS = "0xYOUR_DEPLOYED_CONTRACT_ADDRESS";
+```bash
+cp .env.example .env.local
 ```
+
+Update the values in `.env.local`:
+
+```bash
+# Network: "testnet" (Base Sepolia) or "mainnet" (Base)
+NEXT_PUBLIC_NETWORK=testnet
+
+# Your deployed contract address
+NEXT_PUBLIC_CONTRACT_ADDRESS=0xYOUR_DEPLOYED_CONTRACT_ADDRESS
+
+# Optional: OnchainKit API key from https://portal.cdp.coinbase.com/
+NEXT_PUBLIC_ONCHAINKIT_API_KEY=your_api_key_here
+```
+
+**Important**: Never commit `.env.local` to version control - it's already in `.gitignore`.
 
 ## Step 3: Deploy to Vercel
 
@@ -77,7 +92,10 @@ export const AUTHENTICATOR_CONTRACT_ADDRESS = "0xYOUR_DEPLOYED_CONTRACT_ADDRESS"
 5. Configure the project:
    - Framework Preset: Next.js
    - Root Directory: ./
-   - Environment Variables: Add `NEXT_PUBLIC_ONCHAINKIT_API_KEY` if needed
+   - Environment Variables: Add the following:
+     - `NEXT_PUBLIC_NETWORK`: `testnet` or `mainnet`
+     - `NEXT_PUBLIC_CONTRACT_ADDRESS`: Your deployed contract address
+     - `NEXT_PUBLIC_ONCHAINKIT_API_KEY`: (Optional) Your API key
 6. Click "Deploy"
 7. Wait for the deployment to complete and note your deployment URL
 

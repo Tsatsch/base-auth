@@ -1,8 +1,9 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnect } from "wagmi";
+import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnect, useWaitForTransactionReceipt, useConfig } from "wagmi";
 import { injected } from "wagmi/connectors";
+import { readContract } from "wagmi/actions";
 import styles from "./page.module.css";
 import { encryptSecret, decryptSecret, validateSecret, cleanSecret } from "../lib/crypto";
 import { generateTOTP, getTimeRemaining } from "../lib/totp";
@@ -20,6 +21,7 @@ export default function Home() {
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
+  const config = useConfig();
   const [accounts, setAccounts] = useState<DecryptedAccount[]>([]);
   const [timeRemaining, setTimeRemaining] = useState(30);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -27,6 +29,7 @@ export default function Home() {
   const [newSecret, setNewSecret] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | undefined>();
 
   // Initialize the miniapp
   useEffect(() => {
@@ -44,26 +47,99 @@ export default function Home() {
   }, [isConnected, isFrameReady, connect]);
 
   // Contract interactions
-  const { writeContract } = useWriteContract();
+  const { writeContract, data: writeData, error: writeError, isPending: isWritePending, reset: resetWrite } = useWriteContract();
   
-  const { data: secretsData, refetch: refetchSecrets } = useReadContract({
+  // Log write errors
+  useEffect(() => {
+    if (writeError) {
+      console.error("Write contract error:", writeError);
+    }
+  }, [writeError]);
+  
+  // When writeData changes (tx hash is available), set it as pending
+  useEffect(() => {
+    if (writeData && !pendingTxHash) {
+      console.log("💎 Transaction hash received:", writeData);
+      console.log("View on BaseScan:", `https://base-sepolia.blockscout.com/tx/${writeData}`);
+      setPendingTxHash(writeData);
+    }
+  }, [writeData, pendingTxHash]);
+  
+  // Wait for transaction confirmation
+  const { isSuccess: isTxConfirmed, isLoading: isTxPending, data: txReceipt } = useWaitForTransactionReceipt({
+    hash: pendingTxHash,
+    query: {
+      enabled: !!pendingTxHash,
+    },
+  });
+  
+  // Log transaction receipt status
+  useEffect(() => {
+    if (pendingTxHash) {
+      console.log("⏳ Waiting for transaction confirmation...", {
+        hash: pendingTxHash,
+        isPending: isTxPending,
+        isConfirmed: isTxConfirmed,
+      });
+    }
+  }, [pendingTxHash, isTxPending, isTxConfirmed]);
+  
+  const { data: secretsData, refetch: refetchSecrets, error: readError, isLoading: isReadLoading } = useReadContract({
     address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
     abi: AUTHENTICATOR_ABI,
     functionName: "getSecrets",
-    account: address,
+    account: address, // CRITICAL: Pass the account to set msg.sender
+    args: [],
     query: {
       enabled: isConnected && !!address,
+      refetchInterval: false,
+      staleTime: 0, // Always consider data stale
+      gcTime: 0, // Don't cache at all
     },
   });
+  
+  // Also read secret count for debugging
+  const { data: secretCount, refetch: refetchCount } = useReadContract({
+    address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+    abi: AUTHENTICATOR_ABI,
+    functionName: "getSecretCount",
+    account: address, // CRITICAL: Pass the account to set msg.sender
+    args: [],
+    query: {
+      enabled: isConnected && !!address,
+      staleTime: 0,
+      gcTime: 0,
+    },
+  });
+  
+  // Log read contract state
+  useEffect(() => {
+    console.log("=".repeat(60));
+    console.log("📖 READ CONTRACT STATE");
+    console.log("=".repeat(60));
+    console.log("Connected Wallet Address:", address);
+    console.log("Contract Address:", AUTHENTICATOR_CONTRACT_ADDRESS);
+    console.log("Secret Count:", secretCount?.toString());
+    console.log("Secrets Data Length:", secretsData ? (secretsData as Account[]).length : 0);
+    console.log("Is Connected:", isConnected);
+    console.log("Read Error:", readError);
+    console.log("Is Loading:", isReadLoading);
+    if (secretsData && (secretsData as Account[]).length > 0) {
+      console.log("Accounts found:", (secretsData as Account[]).map((acc: Account) => acc.accountName));
+    }
+    console.log("=".repeat(60));
+  }, [secretsData, secretCount, readError, isReadLoading, address, isConnected]);
 
   // Load and decrypt accounts from blockchain
   const loadAccounts = useCallback(async () => {
     if (!secretsData || !address) {
+      console.log("No secrets data or address available");
       setAccounts([]);
       return;
     }
 
     try {
+      console.log("Loading accounts, count:", (secretsData as Account[]).length);
       const decrypted: DecryptedAccount[] = [];
       
       for (let i = 0; i < (secretsData as Account[]).length; i++) {
@@ -83,6 +159,7 @@ export default function Home() {
         }
       }
       
+      console.log("Loaded and decrypted accounts:", decrypted.length);
       setAccounts(decrypted);
     } catch (err) {
       console.error("Error loading accounts:", err);
@@ -92,6 +169,80 @@ export default function Home() {
   useEffect(() => {
     loadAccounts();
   }, [loadAccounts]);
+
+  // Manual refetch function with explicit account parameter
+  const manualRefetch = async () => {
+    if (!address) return;
+    
+    try {
+      console.log("🔄 Manual refetch with explicit account parameter...");
+      const [secretsResult, countResult] = await Promise.all([
+        readContract(config, {
+          address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+          abi: AUTHENTICATOR_ABI,
+          functionName: "getSecrets",
+          account: address,
+        }),
+        readContract(config, {
+          address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+          abi: AUTHENTICATOR_ABI,
+          functionName: "getSecretCount",
+          account: address,
+        }),
+      ]);
+      
+      console.log("📊 Manual Refetch Results:");
+      console.log("  - Count:", countResult?.toString());
+      console.log("  - Secrets:", secretsResult ? (secretsResult as Account[]).length : 0);
+      
+      return { secretsResult, countResult };
+    } catch (error) {
+      console.error("Error in manual refetch:", error);
+      throw error;
+    }
+  };
+
+  // Refetch when transaction is confirmed
+  useEffect(() => {
+    if (isTxConfirmed && pendingTxHash) {
+      console.log("=".repeat(60));
+      console.log("✅ TRANSACTION CONFIRMED!");
+      console.log("=".repeat(60));
+      console.log("Transaction Hash:", pendingTxHash);
+      console.log("Contract Address:", AUTHENTICATOR_CONTRACT_ADDRESS);
+      console.log("Connected Address:", address);
+      console.log("Waiting 2 seconds before refetching...");
+      console.log("=".repeat(60));
+      
+      // Add a small delay to ensure blockchain state is updated
+      setTimeout(async () => {
+        console.log("🔄 Refetching data from contract...");
+        
+        // Try manual refetch first
+        try {
+          await manualRefetch();
+        } catch (error) {
+          console.error("Manual refetch failed:", error);
+        }
+        
+        // Also trigger the hook refetch
+        const countResult = await refetchCount();
+        const secretsResult = await refetchSecrets();
+        console.log("📊 Hook Refetch Results:");
+        console.log("  - Count:", countResult.data?.toString());
+        console.log("  - Secrets:", secretsResult.data ? (secretsResult.data as Account[]).length : 0);
+        console.log("=".repeat(60));
+        
+        setPendingTxHash(undefined);
+        resetWrite(); // Clear the write state for next transaction
+        setShowAddModal(false);
+        setNewAccountName("");
+        setNewSecret("");
+        setIsLoading(false);
+      }, 2000); // Increased delay to 2 seconds
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTxConfirmed, pendingTxHash, address]);
 
   // Update TOTP codes every second
   useEffect(() => {
@@ -141,11 +292,23 @@ export default function Home() {
 
     try {
       setIsLoading(true);
+      setError("");
+      
+      console.log("=".repeat(60));
+      console.log("✍️  ADDING NEW ACCOUNT");
+      console.log("=".repeat(60));
+      console.log("Wallet Address:", address);
+      console.log("Account Name:", newAccountName.trim());
+      console.log("Contract Address:", AUTHENTICATOR_CONTRACT_ADDRESS);
+      console.log("=".repeat(60));
       
       // Encrypt the secret with the user's wallet address
       const encrypted = encryptSecret(cleanedSecret, address);
+      console.log("✅ Secret encrypted, sending to contract...");
 
       // Write to the smart contract
+      // Note: writeContract doesn't return the hash directly
+      // The hash will be available in writeData and handled by useEffect
       await writeContract({
         address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
         abi: AUTHENTICATOR_ABI,
@@ -153,16 +316,12 @@ export default function Home() {
         args: [newAccountName.trim(), encrypted],
       });
 
-      // Wait a bit and refetch
-      setTimeout(() => {
-        refetchSecrets();
-        setShowAddModal(false);
-        setNewAccountName("");
-        setNewSecret("");
-        setIsLoading(false);
-      }, 2000);
+      console.log("✅ Transaction submitted! Waiting for hash...");
+      console.log("=".repeat(60));
+      
+      // The transaction hash will be set by the useEffect watching writeData
     } catch (err: unknown) {
-      console.error("Error adding account:", err);
+      console.error("❌ Error adding account:", err);
       if (err instanceof Error) {
         setError(`Failed to add account: ${err.message}`);
       } else {
@@ -185,10 +344,7 @@ export default function Home() {
         args: [BigInt(index)],
       });
 
-      setTimeout(() => {
-        refetchSecrets();
-        setIsLoading(false);
-      }, 2000);
+      // The transaction hash will be set by the useEffect watching writeData
     } catch (err) {
       console.error("Error deleting account:", err);
       setIsLoading(false);

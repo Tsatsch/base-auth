@@ -66,8 +66,12 @@ Base Auth is a decentralized authenticator mini-app built for the Base blockchai
 3. Set up environment variables:
    ```bash
    cp .env.example .env.local
-   # Add your OnchainKit API key if needed
    ```
+   
+   Edit `.env.local` and configure:
+   - `NEXT_PUBLIC_NETWORK`: Set to `testnet` or `mainnet`
+   - `NEXT_PUBLIC_CONTRACT_ADDRESS`: Your deployed contract address
+   - `NEXT_PUBLIC_ONCHAINKIT_API_KEY`: (Optional) Your OnchainKit API key
 
 4. Run the development server:
    ```bash

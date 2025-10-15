@@ -1,22 +1,31 @@
 "use client";
 import { ReactNode } from "react";
-import { base } from "wagmi/chains";
+import { base, baseSepolia } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { OnchainKitProvider } from "@coinbase/onchainkit";
 import "@coinbase/onchainkit/styles.css";
 
+// Determine which network to use based on environment variable
+// Options: "testnet" (Base Sepolia) or "mainnet" (Base)
+const NETWORK = process.env.NEXT_PUBLIC_NETWORK || "testnet";
+
+// Map network to chain and RPC URL
+const networkConfig = NETWORK === "mainnet" 
+  ? { chain: base, rpcUrl: "https://mainnet.base.org" }
+  : { chain: baseSepolia, rpcUrl: "https://sepolia.base.org" };
+
 // Create wagmi config with injected connector for Base Mini-App
 const wagmiConfig = createConfig({
-  chains: [base],
+  chains: [networkConfig.chain],
   connectors: [
     injected({
       target: "metaMask", // This will use the injected provider from Base app
     }),
   ],
   transports: {
-    [base.id]: http(),
+    [networkConfig.chain.id]: http(networkConfig.rpcUrl),
   },
   ssr: true,
 });
@@ -37,7 +46,7 @@ export function RootProvider({ children }: { children: ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <OnchainKitProvider
           apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
-          chain={base}
+          chain={networkConfig.chain}
           config={{
             appearance: {
               mode: "auto",
