@@ -1,18 +1,24 @@
 @layer base {
   :root {
     /* Base Brand Colors */
-    --base-blue: rgb(0, 0, 255);
+    --base-blue: rgb(0, 82, 255); /* #0052FF from Base brand */
+    --base-blue-ink: rgb(0, 56, 175); /* darker ink for contrast */
     --base-white: rgb(255, 255, 255);
     --gray-100: rgb(10, 11, 13);
     --gray-70: rgb(82, 88, 102);
     --gray-30: rgb(177, 183, 195);
     --gray-15: rgb(222, 225, 231);
     --gray-5: rgb(247, 248, 249);
+    --gray-2: rgb(250, 251, 252);
     
     --background: var(--base-white);
     --foreground: var(--gray-100);
     --border: var(--gray-15);
     --accent: var(--base-blue);
+
+    /* Pixel system */
+    --pixel-size: 8px; /* pixel grid unit */
+    --pixel-grid-color: rgba(10, 11, 13, 0.06);
   }
 
   html,

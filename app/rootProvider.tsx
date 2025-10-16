@@ -17,18 +17,31 @@ const networkConfig = NETWORK === "mainnet"
   : { chain: baseSepolia, rpcUrl: "https://sepolia.base.org" };
 
 // Create wagmi config with injected connector for Base Mini-App
-const wagmiConfig = createConfig({
-  chains: [networkConfig.chain],
-  connectors: [
-    injected({
-      target: "metaMask", // This will use the injected provider from Base app
-    }),
-  ],
-  transports: {
-    [networkConfig.chain.id]: http(networkConfig.rpcUrl),
-  },
-  ssr: true,
-});
+const wagmiConfig = NETWORK === "mainnet"
+  ? createConfig({
+      chains: [base],
+      connectors: [
+        injected({
+          target: "metaMask", // This will use the injected provider from Base app
+        }),
+      ],
+      transports: {
+        [base.id]: http("https://mainnet.base.org"),
+      },
+      ssr: true,
+    })
+  : createConfig({
+      chains: [baseSepolia],
+      connectors: [
+        injected({
+          target: "metaMask", // This will use the injected provider from Base app
+        }),
+      ],
+      transports: {
+        [baseSepolia.id]: http("https://sepolia.base.org"),
+      },
+      ssr: true,
+    });
 
 // Create a client for React Query
 const queryClient = new QueryClient({

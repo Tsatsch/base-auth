@@ -47,7 +47,7 @@ export default function Home() {
   }, [isConnected, isFrameReady, connect]);
 
   // Contract interactions
-  const { writeContract, data: writeData, error: writeError, isPending: isWritePending, reset: resetWrite } = useWriteContract();
+  const { writeContract, data: writeData, error: writeError, isPending: _isWritePending, reset: resetWrite } = useWriteContract();
   
   // Log write errors
   useEffect(() => {
@@ -66,7 +66,7 @@ export default function Home() {
   }, [writeData, pendingTxHash]);
   
   // Wait for transaction confirmation
-  const { isSuccess: isTxConfirmed, isLoading: isTxPending, data: txReceipt } = useWaitForTransactionReceipt({
+  const { isSuccess: isTxConfirmed, isLoading: isTxPending, data: _txReceipt } = useWaitForTransactionReceipt({
     hash: pendingTxHash,
     query: {
       enabled: !!pendingTxHash,
@@ -420,30 +420,14 @@ export default function Home() {
                     {account.code}
                   </button>
                   <div className={styles.timer}>
-                    <svg className={styles.timerCircle} viewBox="0 0 36 36">
-                      <circle
-                        cx="18"
-                        cy="18"
-                        r="16"
-                        fill="none"
-                        stroke="var(--gray-15)"
-                        strokeWidth="2"
-                      />
-                      <circle
-                        cx="18"
-                        cy="18"
-                        r="16"
-                        fill="none"
-                        stroke="var(--base-blue)"
-                        strokeWidth="2"
-                        strokeDasharray={`${(timeRemaining / 30) * 100.5} 100.5`}
-                        strokeLinecap="round"
-                        transform="rotate(-90 18 18)"
-                      />
-                      <text className={styles.timerText} x="50%" y="50%" textAnchor="middle" dy=".3em">
-                        {timeRemaining}
-                      </text>
-                    </svg>
+                    <div className={styles.pixelProgress} aria-label="TOTP timer" role="progressbar"
+                      aria-valuemin={0} aria-valuemax={30} aria-valuenow={timeRemaining}
+                    >
+                      <div className={styles.pixelFill} style={{ width: `${((30 - timeRemaining) / 30) * 100}%` }} />
+                      <div className={styles.pixelGrid} />
+                      <div className={styles.pixelCap} style={{ left: `calc(${((30 - timeRemaining) / 30) * 100}% - var(--pixel-size) / 2)` }} />
+                    </div>
+                    <div className={styles.timerTextInline}>{timeRemaining}s</div>
                   </div>
                 </div>
               </div>
