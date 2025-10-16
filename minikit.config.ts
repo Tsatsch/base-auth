@@ -17,7 +17,7 @@ export const minikitConfig = {
     version: "1",
     name: "Base Auth", 
     subtitle: "OnChain TwoFA Authenticator", 
-    description: "Secure onchain two-factor authentication Two FA management for the Base blockchain. Store and manage your 2FA secrets with blockchain security",
+    description: "Secure onchain two factor authentication Two FA management for the Base blockchain. Store and manage your 2FA secrets with blockchain security",
     screenshotUrls: [`${ROOT_URL}/screenshot-portrait.png`],
     iconUrl: `${ROOT_URL}/blue-icon.png`,
     splashImageUrl: `${ROOT_URL}/blue-hero.png`,
