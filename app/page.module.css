@@ -354,6 +354,15 @@
   border: 1px solid rgb(252, 165, 165);
 }
 
+.info {
+  font-size: 0.875rem;
+  color: var(--gray-100);
+  padding: 0.75rem 1rem;
+  background: rgb(219, 234, 254);
+  border-radius: 8px;
+  border: 1px solid var(--base-blue);
+}
+
 .submitButton {
   padding: 0.875rem 1.5rem;
   background: var(--base-blue);

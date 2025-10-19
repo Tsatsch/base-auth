@@ -5,9 +5,10 @@ import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnec
 import { injected } from "wagmi/connectors";
 import { readContract } from "wagmi/actions";
 import styles from "./page.module.css";
-import { encryptSecret, decryptSecret, validateSecret, cleanSecret } from "../lib/crypto";
+import { encryptSecretGCM, decryptSecretGCM, validateSecret, cleanSecret } from "../lib/crypto";
 import { generateTOTP, getTimeRemaining } from "../lib/totp";
 import { AUTHENTICATOR_ABI, AUTHENTICATOR_CONTRACT_ADDRESS, type Account } from "../lib/contract";
+import { uploadToIPFS, retrieveFromIPFS, type SecretMetadata } from "../lib/ipfs";
 
 interface DecryptedAccount {
   accountName: string;
@@ -29,6 +30,7 @@ export default function Home() {
   const [newSecret, setNewSecret] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [uploadingToIPFS, setUploadingToIPFS] = useState(false);
   const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | undefined>();
 
   // Initialize the miniapp
@@ -130,7 +132,7 @@ export default function Home() {
     console.log("=".repeat(60));
   }, [secretsData, secretCount, readError, isReadLoading, address, isConnected]);
 
-  // Load and decrypt accounts from blockchain
+  // Load and decrypt accounts from IPFS
   const loadAccounts = useCallback(async () => {
     if (!secretsData || !address) {
       console.log("No secrets data or address available");
@@ -145,7 +147,19 @@ export default function Home() {
       for (let i = 0; i < (secretsData as Account[]).length; i++) {
         const account = (secretsData as Account[])[i];
         try {
-          const decryptedSecret = decryptSecret(account.encryptedSecret, address);
+          console.log(`📦 Retrieving account ${i} from IPFS: ${account.ipfsCID}`);
+          
+          // Retrieve encrypted metadata from IPFS
+          const metadata: SecretMetadata = await retrieveFromIPFS(account.ipfsCID);
+          
+          // Decrypt the secret using AES-256-GCM
+          const decryptedSecret = await decryptSecretGCM(
+            metadata.encryptedSecret,
+            metadata.iv,
+            metadata.salt,
+            address
+          );
+          
           const code = generateTOTP(decryptedSecret, account.accountName);
           
           decrypted.push({
@@ -154,6 +168,8 @@ export default function Home() {
             code,
             index: i,
           });
+          
+          console.log(`✅ Successfully decrypted account: ${account.accountName}`);
         } catch (err) {
           console.error(`Failed to decrypt account ${account.accountName}:`, err);
         }
@@ -239,6 +255,7 @@ export default function Home() {
         setNewAccountName("");
         setNewSecret("");
         setIsLoading(false);
+        setUploadingToIPFS(false);
       }, 2000); // Increased delay to 2 seconds
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -292,34 +309,52 @@ export default function Home() {
 
     try {
       setIsLoading(true);
+      setUploadingToIPFS(true);
       setError("");
       
       console.log("=".repeat(60));
-      console.log("✍️  ADDING NEW ACCOUNT");
+      console.log("✍️  ADDING NEW ACCOUNT WITH IPFS");
       console.log("=".repeat(60));
       console.log("Wallet Address:", address);
       console.log("Account Name:", newAccountName.trim());
       console.log("Contract Address:", AUTHENTICATOR_CONTRACT_ADDRESS);
       console.log("=".repeat(60));
       
-      // Encrypt the secret with the user's wallet address
-      const encrypted = encryptSecret(cleanedSecret, address);
-      console.log("✅ Secret encrypted, sending to contract...");
+      // Step 1: Encrypt the secret with AES-256-GCM
+      console.log("🔐 Encrypting secret with AES-256-GCM...");
+      const { encrypted, iv, salt } = await encryptSecretGCM(cleanedSecret, address);
+      console.log("✅ Secret encrypted");
 
-      // Write to the smart contract
-      // Note: writeContract doesn't return the hash directly
-      // The hash will be available in writeData and handled by useEffect
+      // Step 2: Create metadata object
+      const metadata: SecretMetadata = {
+        accountName: newAccountName.trim(),
+        encryptedSecret: encrypted,
+        algorithm: "SHA1",
+        period: 30,
+        digits: 6,
+        timestamp: Date.now(),
+        iv,
+        salt,
+      };
+
+      // Step 3: Upload to IPFS
+      console.log("📤 Uploading to IPFS...");
+      const ipfsCID = await uploadToIPFS(metadata);
+      console.log("✅ Uploaded to IPFS:", ipfsCID);
+      setUploadingToIPFS(false);
+
+      // Step 4: Store IPFS CID on blockchain
+      console.log("⛓️  Storing IPFS CID on blockchain...");
       await writeContract({
         address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
         abi: AUTHENTICATOR_ABI,
         functionName: "addSecret",
-        args: [newAccountName.trim(), encrypted],
+        args: [newAccountName.trim(), ipfsCID],
       });
 
-      console.log("✅ Transaction submitted! Waiting for hash...");
+      console.log("✅ Transaction submitted! Waiting for confirmation...");
       console.log("=".repeat(60));
       
-      // The transaction hash will be set by the useEffect watching writeData
     } catch (err: unknown) {
       console.error("❌ Error adding account:", err);
       if (err instanceof Error) {
@@ -328,6 +363,7 @@ export default function Home() {
         setError("Failed to add account. Please try again.");
       }
       setIsLoading(false);
+      setUploadingToIPFS(false);
     }
   };
 
@@ -393,7 +429,7 @@ export default function Home() {
           <div className={styles.emptyIcon}>🔐</div>
           <h2 className={styles.emptyTitle}>Connect Your Wallet</h2>
           <p className={styles.emptyDescription}>
-            Connect your wallet to start managing your 2FA accounts on-chain securely.
+            Connect your wallet to start managing your 2FA accounts securely with IPFS.
           </p>
         </div>
       ) : accounts.length === 0 ? (
@@ -401,7 +437,7 @@ export default function Home() {
           <div className={styles.emptyIcon}>🔑</div>
           <h2 className={styles.emptyTitle}>No 2FA Accounts Yet</h2>
           <p className={styles.emptyDescription}>
-            Add your first 2FA account to start generating secure one-time codes.
+            Add your first 2FA account. Data is encrypted and stored on IPFS.
           </p>
         </div>
       ) : (
@@ -500,15 +536,21 @@ export default function Home() {
                   disabled={isLoading}
                 />
                 <p className={styles.hint}>
-                  The secret key is usually provided as a base32 encoded string when you set up
-                  2FA. It will be encrypted and stored on-chain.
+                  The secret is encrypted with AES-256-GCM and stored on IPFS.
+                  Only the IPFS CID is stored on-chain.
                 </p>
               </div>
 
               {error && <div className={styles.error}>{error}</div>}
 
+              {uploadingToIPFS && (
+                <div className={styles.info}>
+                  📤 Uploading encrypted data to IPFS...
+                </div>
+              )}
+
               <button type="submit" className={styles.submitButton} disabled={isLoading}>
-                {isLoading ? "Adding..." : "Add Account"}
+                {uploadingToIPFS ? "Uploading to IPFS..." : isLoading ? "Adding..." : "Add Account"}
               </button>
             </form>
           </div>
