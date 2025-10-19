@@ -17,6 +17,7 @@ export interface SecretMetadata {
   timestamp: number;
   iv: string; // Initialization vector for AES-GCM
   salt: string; // Salt for key derivation
+  logoCID?: string; // Optional IPFS CID for the account logo
 }
 
 /**
@@ -235,4 +236,72 @@ export async function listPinnedFiles() {
     console.error('❌ List files error:', error);
     throw new Error(`Failed to list files: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
+}
+
+/**
+ * Upload an image file to IPFS via Pinata
+ * Reference: https://docs.pinata.cloud/sdk/upload
+ * 
+ * @param file The image file to upload
+ * @param accountName The account name for metadata
+ * @returns The IPFS CID (Content Identifier)
+ */
+export async function uploadImageToIPFS(file: File, accountName: string): Promise<string> {
+  try {
+    const pinata = getPinataClient();
+
+    console.log('📤 Uploading image to IPFS via Pinata...');
+    console.log('   Account:', accountName);
+    console.log('   File size:', (file.size / 1024).toFixed(2), 'KB');
+    console.log('   File type:', file.type);
+
+    // Upload image file using the v3 SDK
+    const upload = await pinata.upload.public.file(file);
+
+    console.log('✅ Image uploaded to IPFS:', upload.cid);
+    console.log('   Upload ID:', upload.id);
+    console.log('   Size:', upload.size, 'bytes');
+
+    return upload.cid;
+  } catch (error) {
+    console.error('❌ Image IPFS upload error:', error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('Unauthorized') || error.message.includes('401')) {
+        throw new Error(
+          'Pinata Authentication Error: Invalid JWT token. ' +
+          'Please create a new API key with JWT at: https://app.pinata.cloud/developers/api-keys'
+        );
+      }
+      
+      if (error.message.includes('403')) {
+        throw new Error(
+          'Pinata Permission Error: Your API key lacks required permissions. ' +
+          'Please create a new key with "Admin" permissions at: https://app.pinata.cloud/developers/api-keys'
+        );
+      }
+
+      throw new Error(`Failed to upload image to IPFS: ${error.message}`);
+    }
+    
+    throw new Error('Failed to upload image to IPFS: Unknown error');
+  }
+}
+
+/**
+ * Retrieve an image from IPFS via Pinata Gateway
+ * Reference: https://docs.pinata.cloud/gateways/retrieving-files
+ * 
+ * @param cid The IPFS Content Identifier
+ * @returns URL to the image on the gateway
+ */
+export function getIPFSImageURL(cid: string): string {
+  const gateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY;
+  
+  if (!gateway) {
+    throw new Error('Pinata Gateway not configured');
+  }
+
+  // Use the Pinata dedicated gateway for optimal performance
+  return `https://${gateway}/ipfs/${cid}`;
 }

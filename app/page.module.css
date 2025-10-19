@@ -114,11 +114,25 @@
   flex: 1;
 }
 
+.accountHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.accountLogo {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
 .accountName {
   font-size: 1rem;
   font-weight: 600;
   color: var(--gray-100);
-  margin-bottom: 0.5rem;
 }
 
 .codeDisplay {
@@ -343,6 +357,71 @@
   font-size: 0.75rem;
   color: var(--gray-70);
   line-height: 1.4;
+}
+
+.fileInput {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  color: var(--gray-100);
+  background: var(--base-white);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.fileInput:hover {
+  border-color: var(--gray-30);
+}
+
+.fileInput:focus {
+  outline: none;
+  border-color: var(--base-blue);
+}
+
+.fileInput:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.logoPreview {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--gray-5);
+}
+
+.logoPreviewImage {
+  width: 64px;
+  height: 64px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.removeLogoButton {
+  padding: 0.5rem 1rem;
+  background: var(--base-white);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--gray-70);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.removeLogoButton:hover {
+  border-color: var(--gray-30);
+  color: var(--gray-100);
+}
+
+.removeLogoButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .error {

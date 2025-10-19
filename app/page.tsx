@@ -8,13 +8,15 @@ import styles from "./page.module.css";
 import { encryptSecretGCM, decryptSecretGCM, validateSecret, cleanSecret } from "../lib/crypto";
 import { generateTOTP, getTimeRemaining } from "../lib/totp";
 import { AUTHENTICATOR_ABI, AUTHENTICATOR_CONTRACT_ADDRESS, type Account } from "../lib/contract";
-import { uploadToIPFS, retrieveFromIPFS, type SecretMetadata } from "../lib/ipfs";
+import { uploadToIPFS, retrieveFromIPFS, uploadImageToIPFS, getIPFSImageURL, type SecretMetadata } from "../lib/ipfs";
+import { compressImage, isValidImageFile } from "../lib/imageCompression";
 
 interface DecryptedAccount {
   accountName: string;
   secret: string;
   code: string;
   index: number;
+  logoCID?: string;
 }
 
 export default function Home() {
@@ -28,6 +30,8 @@ export default function Home() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newAccountName, setNewAccountName] = useState("");
   const [newSecret, setNewSecret] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingToIPFS, setUploadingToIPFS] = useState(false);
@@ -167,6 +171,7 @@ export default function Home() {
             secret: decryptedSecret,
             code,
             index: i,
+            logoCID: metadata.logoCID,
           });
           
           console.log(`✅ Successfully decrypted account: ${account.accountName}`);
@@ -254,6 +259,8 @@ export default function Home() {
         setShowAddModal(false);
         setNewAccountName("");
         setNewSecret("");
+        setLogoFile(null);
+        setLogoPreview(null);
         setIsLoading(false);
         setUploadingToIPFS(false);
       }, 2000); // Increased delay to 2 seconds
@@ -280,6 +287,29 @@ export default function Home() {
 
     return () => clearInterval(interval);
   }, [accounts.length]);
+
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setLogoFile(null);
+      setLogoPreview(null);
+      return;
+    }
+
+    if (!isValidImageFile(file)) {
+      setError("Invalid image file. Please upload a JPEG, PNG, GIF, or WebP image under 10MB.");
+      return;
+    }
+
+    setLogoFile(file);
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setLogoPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleAddAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -320,12 +350,25 @@ export default function Home() {
       console.log("Contract Address:", AUTHENTICATOR_CONTRACT_ADDRESS);
       console.log("=".repeat(60));
       
-      // Step 1: Encrypt the secret with AES-256-GCM
+      // Step 1: Upload and compress logo if provided
+      let logoCID: string | undefined;
+      if (logoFile) {
+        console.log("🖼️  Processing logo...");
+        const compressedLogo = await compressImage(logoFile, {
+          maxSizeMB: 0.5,
+          maxWidthOrHeight: 512,
+        });
+        console.log("📤 Uploading logo to IPFS...");
+        logoCID = await uploadImageToIPFS(compressedLogo, newAccountName.trim());
+        console.log("✅ Logo uploaded to IPFS:", logoCID);
+      }
+
+      // Step 2: Encrypt the secret with AES-256-GCM
       console.log("🔐 Encrypting secret with AES-256-GCM...");
       const { encrypted, iv, salt } = await encryptSecretGCM(cleanedSecret, address);
       console.log("✅ Secret encrypted");
 
-      // Step 2: Create metadata object
+      // Step 3: Create metadata object
       const metadata: SecretMetadata = {
         accountName: newAccountName.trim(),
         encryptedSecret: encrypted,
@@ -335,15 +378,16 @@ export default function Home() {
         timestamp: Date.now(),
         iv,
         salt,
+        logoCID,
       };
 
-      // Step 3: Upload to IPFS
-      console.log("📤 Uploading to IPFS...");
+      // Step 4: Upload metadata to IPFS
+      console.log("📤 Uploading metadata to IPFS...");
       const ipfsCID = await uploadToIPFS(metadata);
       console.log("✅ Uploaded to IPFS:", ipfsCID);
       setUploadingToIPFS(false);
 
-      // Step 4: Store IPFS CID on blockchain
+      // Step 5: Store IPFS CID on blockchain
       console.log("⛓️  Storing IPFS CID on blockchain...");
       await writeContract({
         address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
@@ -445,7 +489,20 @@ export default function Home() {
           {accounts.map((account) => (
             <div key={account.index} className={styles.accountCard}>
               <div className={styles.accountInfo}>
-                <div className={styles.accountName}>{account.accountName}</div>
+                <div className={styles.accountHeader}>
+                  {account.logoCID && (
+                    <img
+                      src={getIPFSImageURL(account.logoCID)}
+                      alt={`${account.accountName} logo`}
+                      className={styles.accountLogo}
+                      onError={(e) => {
+                        // Hide logo if it fails to load
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  )}
+                  <div className={styles.accountName}>{account.accountName}</div>
+                </div>
                 <div className={styles.codeDisplay}>
                   <button
                     className={styles.code}
@@ -541,11 +598,46 @@ export default function Home() {
                 </p>
               </div>
 
+              <div className={styles.formGroup}>
+                <label htmlFor="logo" className={styles.label}>
+                  Logo (Optional)
+                </label>
+                <input
+                  id="logo"
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  onChange={handleLogoChange}
+                  className={styles.fileInput}
+                  disabled={isLoading}
+                />
+                {logoPreview && (
+                  <div className={styles.logoPreview}>
+                    <img src={logoPreview} alt="Logo preview" className={styles.logoPreviewImage} />
+                    <button
+                      type="button"
+                      className={styles.removeLogoButton}
+                      onClick={() => {
+                        setLogoFile(null);
+                        setLogoPreview(null);
+                        const input = document.getElementById('logo') as HTMLInputElement;
+                        if (input) input.value = '';
+                      }}
+                      disabled={isLoading}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+                <p className={styles.hint}>
+                  Logo will be compressed and stored on IPFS. Max 10MB, recommended 512x512px.
+                </p>
+              </div>
+
               {error && <div className={styles.error}>{error}</div>}
 
               {uploadingToIPFS && (
                 <div className={styles.info}>
-                  📤 Uploading encrypted data to IPFS...
+                  Uploading encrypted data to IPFS...
                 </div>
               )}
 
