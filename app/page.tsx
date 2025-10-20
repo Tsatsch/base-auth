@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
 import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnect, useWaitForTransactionReceipt, useConfig } from "wagmi";
 import { injected } from "wagmi/connectors";
@@ -36,6 +37,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingToIPFS, setUploadingToIPFS] = useState(false);
   const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | undefined>();
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   // Initialize the miniapp
   useEffect(() => {
@@ -435,8 +437,12 @@ export default function Home() {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
-  const copyToClipboard = (code: string) => {
+  const copyToClipboard = (code: string, index?: number) => {
     navigator.clipboard.writeText(code);
+    if (typeof index === 'number') {
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 1200);
+    }
   };
 
   const handleConnect = () => {
@@ -450,7 +456,13 @@ export default function Home() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Base Auth</h1>
+        <div className={styles.brand}>
+          <Image src="/logo.png" alt="Base Auth" width={32} height={32} className={styles.headerLogo} />
+          <h1 className={styles.title}>
+            <span className={styles.titleBase}>BASE</span>
+            <span className={styles.titleAuth}>AUTH</span>
+          </h1>
+        </div>
         {isConnected && address ? (
           <div 
             className={styles.walletInfo}
@@ -468,6 +480,12 @@ export default function Home() {
         )}
       </div>
 
+      {isTxPending && (
+        <div className={styles.toast} role="status" aria-live="polite">
+          Pending transaction  a{/* non-breaking visual spacing */}
+        </div>
+      )}
+
       {!isConnected ? (
         <div className={styles.emptyState}>
           <div className={styles.emptyIcon}>🔐</div>
@@ -483,6 +501,13 @@ export default function Home() {
           <p className={styles.emptyDescription}>
             Add your first 2FA account. Data is encrypted and stored on IPFS.
           </p>
+          <button
+            className={styles.connectButton}
+            onClick={() => setShowAddModal(true)}
+            type="button"
+          >
+            Add Account
+          </button>
         </div>
       ) : (
         <div className={styles.accountsList}>
@@ -491,9 +516,11 @@ export default function Home() {
               <div className={styles.accountInfo}>
                 <div className={styles.accountHeader}>
                   {account.logoCID && (
-                    <img
+                    <Image
                       src={getIPFSImageURL(account.logoCID)}
                       alt={`${account.accountName} logo`}
+                      width={32}
+                      height={32}
                       className={styles.accountLogo}
                       onError={(e) => {
                         // Hide logo if it fails to load
@@ -506,12 +533,15 @@ export default function Home() {
                 <div className={styles.codeDisplay}>
                   <button
                     className={styles.code}
-                    onClick={() => copyToClipboard(account.code)}
+                    onClick={() => copyToClipboard(account.code, account.index)}
                     title="Click to copy"
                     type="button"
                   >
                     {account.code}
                   </button>
+                  {copiedIndex === account.index && (
+                    <span className={styles.copiedBadge} aria-live="polite">Copied</span>
+                  )}
                   <div className={styles.timer}>
                     <div className={styles.pixelProgress} aria-label="TOTP timer" role="progressbar"
                       aria-valuemin={0} aria-valuemax={30} aria-valuenow={timeRemaining}
@@ -553,6 +583,7 @@ export default function Home() {
       {showAddModal && (
         <div className={styles.modal} onClick={() => setShowAddModal(false)}>
           <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.sheetHandle} aria-hidden />
             <div className={styles.modalHeader}>
               <h2 className={styles.modalTitle}>Add 2FA Account</h2>
               <button
@@ -612,7 +643,7 @@ export default function Home() {
                 />
                 {logoPreview && (
                   <div className={styles.logoPreview}>
-                    <img src={logoPreview} alt="Logo preview" className={styles.logoPreviewImage} />
+                    <Image src={logoPreview} alt="Logo preview" width={64} height={64} className={styles.logoPreviewImage} />
                     <button
                       type="button"
                       className={styles.removeLogoButton}
@@ -642,7 +673,14 @@ export default function Home() {
               )}
 
               <button type="submit" className={styles.submitButton} disabled={isLoading}>
-                {uploadingToIPFS ? "Uploading to IPFS..." : isLoading ? "Adding..." : "Add Account"}
+                {isLoading ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className={styles.spinner} aria-hidden />
+                    {uploadingToIPFS ? 'Uploading to IPFS...' : 'Adding...'}
+                  </span>
+                ) : (
+                  'Add Account'
+                )}
               </button>
             </form>
           </div>

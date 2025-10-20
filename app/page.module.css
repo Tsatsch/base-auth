@@ -1,7 +1,7 @@
 .container {
   min-height: 100vh;
   padding: 1.5rem;
-  background: var(--base-white);
+  background: linear-gradient(180deg, var(--gray-2) 0%, var(--base-white) 42%);
   display: flex;
   flex-direction: column;
 }
@@ -13,11 +13,32 @@
   margin-bottom: 2rem;
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.headerLogo {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+}
+
 .title {
-  font-size: 1.5rem;
+  font-size: clamp(1.25rem, 4vw, 1.5rem);
   font-weight: 600;
-  color: var(--gray-100);
   letter-spacing: -0.02em;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.titleBase {
+  color: #0000ff;
+}
+
+.titleAuth {
+  color: #32353d;
 }
 
 .connectButton {
@@ -29,11 +50,21 @@
   font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, transform 0.05s, box-shadow 0.2s;
+  box-shadow: 0 2px 6px rgba(0, 82, 255, 0.2);
 }
 
 .connectButton:hover {
   opacity: 0.9;
+}
+
+.connectButton:active {
+  transform: translateY(1px);
+}
+
+.connectButton:focus-visible {
+  outline: 2px solid rgba(0, 82, 255, 0.5);
+  outline-offset: 2px;
 }
 
 .connectButton:disabled {
@@ -51,10 +82,17 @@
   border-radius: 8px;
   font-size: 0.875rem;
   color: var(--gray-70);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background-color 0.2s;
 }
 
 .walletAddress {
   font-family: var(--font-source-code-pro), monospace;
+  color: var(--gray-100);
+}
+
+.walletInfo:hover {
+  border-color: var(--gray-30);
   color: var(--gray-100);
 }
 
@@ -75,7 +113,7 @@
 }
 
 .emptyTitle {
-  font-size: 1.25rem;
+  font-size: clamp(1.125rem, 4.5vw, 1.25rem);
   font-weight: 600;
   color: var(--gray-100);
   margin-bottom: 0.5rem;
@@ -93,6 +131,8 @@
   flex-direction: column;
   gap: 1rem;
   margin-bottom: 2rem;
+  /* Add safe space for the floating action button */
+  padding-bottom: 5rem;
 }
 
 .accountCard {
@@ -133,6 +173,10 @@
   font-size: 1rem;
   font-weight: 600;
   color: var(--gray-100);
+  max-width: 70vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .codeDisplay {
@@ -147,6 +191,30 @@
   font-weight: 600;
   color: var(--base-blue);
   letter-spacing: 0.25em;
+  padding: 0.5rem 0.75rem;
+  background: var(--gray-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: background-color 0.2s, border-color 0.2s, transform 0.05s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.code:hover {
+  border-color: var(--gray-30);
+}
+
+.code:active {
+  transform: translateY(1px);
+}
+
+.copiedBadge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--base-blue);
+  background: rgba(0, 82, 255, 0.08);
+  border: 1px solid var(--base-blue);
+  border-radius: 999px;
+  padding: 0.125rem 0.5rem;
 }
 
 .timer {
@@ -215,7 +283,7 @@
   color: var(--gray-70);
   cursor: pointer;
   transition: all 0.2s;
-  font-size: 1rem;
+  font-size: 1.125rem;
 }
 
 .deleteButton:hover {
@@ -223,10 +291,15 @@
   color: var(--gray-100);
 }
 
+.deleteButton:focus-visible {
+  outline: 2px solid rgba(0, 82, 255, 0.5);
+  outline-offset: 2px;
+}
+
 .addButton {
   position: fixed;
-  bottom: 2rem;
-  right: 2rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  right: 1rem;
   width: 56px;
   height: 56px;
   border-radius: 50%;
@@ -269,6 +342,14 @@
   width: 100%;
   max-width: 28rem;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.sheetHandle {
+  width: 40px;
+  height: 4px;
+  background: var(--gray-15);
+  border-radius: 999px;
+  margin: 0 auto 0.75rem auto;
 }
 
 .modalHeader {
@@ -334,6 +415,7 @@
 .input:focus {
   outline: none;
   border-color: var(--base-blue);
+  box-shadow: 0 0 0 3px rgba(0, 82, 255, 0.12);
 }
 
 .textarea {
@@ -351,6 +433,7 @@
 .textarea:focus {
   outline: none;
   border-color: var(--base-blue);
+  box-shadow: 0 0 0 3px rgba(0, 82, 255, 0.12);
 }
 
 .hint {
@@ -451,8 +534,9 @@
   font-weight: 600;
   font-size: 0.875rem;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, transform 0.05s, box-shadow 0.2s;
   margin-top: 0.5rem;
+  box-shadow: 0 2px 6px rgba(0, 82, 255, 0.2);
 }
 
 .submitButton:hover {
@@ -464,12 +548,46 @@
   cursor: not-allowed;
 }
 
+.submitButton:active {
+  transform: translateY(1px);
+}
+
+.submitButton:focus-visible {
+  outline: 2px solid rgba(0, 82, 255, 0.5);
+  outline-offset: 2px;
+}
+
 .loading {
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2rem;
   color: var(--gray-70);
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--gray-15);
+  border-top-color: var(--base-blue);
+  animation: spin 0.8s linear infinite;
+  margin-right: 0.5rem;
+}
+
+.toast {
+  position: fixed;
+  bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--base-white);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.5rem 0.75rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  font-size: 0.8125rem;
+  color: var(--gray-100);
+  z-index: 1100;
 }
 
 @media (max-width: 640px) {
@@ -490,5 +608,60 @@
 
   .code {
     font-size: 1.5rem;
+  }
+
+  .pixelProgress {
+    width: 120px;
+    height: 12px;
+  }
+
+  /* Bottom sheet modal presentation on mobile */
+  .modal {
+    align-items: flex-end;
+    padding: 0.75rem;
+  }
+
+  .modalContent {
+    position: relative;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    animation: sheetIn 180ms ease-out;
+  }
+
+  .connectButton,
+  .submitButton {
+    width: 100%;
+  }
+
+  .addButton {
+    width: 56px;
+    height: 56px;
+    font-size: 1.5rem;
+  }
+}
+
+@keyframes sheetIn {
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0); }
+  to { transform: rotate(360deg); }
+}
+
+@media (min-width: 768px) {
+  .pixelProgress {
+    width: 160px;
   }
 }
