@@ -686,17 +686,17 @@ export default function Home() {
                     </div>
                     <div className={styles.timerTextInline}>{timeRemaining}s</div>
                   </div>
+                  <button
+                    className={styles.deleteButton}
+                    onClick={() => handleDeleteAccount(account.index)}
+                    disabled={isLoading}
+                    type="button"
+                    title="Delete account"
+                  >
+                    ✕
+                  </button>
                 </div>
               </div>
-              <button
-                className={styles.deleteButton}
-                onClick={() => handleDeleteAccount(account.index)}
-                disabled={isLoading}
-                type="button"
-                title="Delete account"
-              >
-                🗑️
-              </button>
             </div>
           ))}
         </div>
