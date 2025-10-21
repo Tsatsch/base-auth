@@ -18,7 +18,7 @@ export async function generateTOTPQRCode(
     });
     
     return qrCodeDataURL;
-  } catch (error) {
+  } catch {
     throw new Error('Failed to generate QR code');
   }
 }
@@ -35,7 +35,7 @@ export async function generateSimpleQRCode(text: string): Promise<string> {
     });
     
     return qrCodeDataURL;
-  } catch (error) {
+  } catch {
     throw new Error('Failed to generate QR code');
   }
 }

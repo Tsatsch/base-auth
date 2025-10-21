@@ -71,7 +71,7 @@ export default function QRCodeGenerator({ onClose, isOpen }: QRCodeGeneratorProp
           new ClipboardItem({ 'image/png': blob })
         ]);
         alert('QR code copied to clipboard!');
-      } catch (err) {
+      } catch {
         alert('Failed to copy QR code to clipboard');
       }
     }

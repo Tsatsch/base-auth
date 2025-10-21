@@ -91,7 +91,7 @@ export async function encryptSecretGCM(
       iv: arrayBufferToBase64(iv),
       salt: arrayBufferToBase64(salt),
     };
-  } catch (error) {
+  } catch {
     throw new Error('Failed to encrypt secret');
   }
 }
@@ -130,7 +130,7 @@ export async function decryptSecretGCM(
     }
 
     return decryptedString;
-  } catch (error) {
+  } catch {
     throw new Error('Failed to decrypt secret');
   }
 }
@@ -177,7 +177,7 @@ export async function encryptBundleGCM(
       iv: arrayBufferToBase64(iv),
       salt: arrayBufferToBase64(salt),
     };
-  } catch (error) {
+  } catch {
     throw new Error('Failed to encrypt bundle');
   }
 }
@@ -216,7 +216,7 @@ export async function decryptBundleGCM(
     }
 
     return JSON.parse(decryptedString);
-  } catch (error) {
+  } catch {
     throw new Error('Failed to decrypt bundle - wrong signature or corrupted data');
   }
 }

@@ -140,7 +140,7 @@ export async function retrieveFromIPFS(cid: string): Promise<SecretMetadata> {
   }
 }
 
-export async function createSignedURL(cid: string, expiresIn: number = 30): Promise<string> {
+export async function createSignedURL(cid: string, _expiresIn: number = 30): Promise<string> {
   try {
     const pinata = getPinataClient();
 
@@ -158,7 +158,7 @@ export async function unpinContent(fileId: string): Promise<void> {
 
     await pinata.files.public.delete([fileId]);
 
-  } catch (error) {
+  } catch {
   }
 }
 
@@ -174,7 +174,7 @@ export async function listPinnedFiles() {
   }
 }
 
-export async function uploadImageToIPFS(file: File, accountName: string): Promise<string> {
+export async function uploadImageToIPFS(file: File, _accountName: string): Promise<string> {
   try {
     const pinata = getPinataClient();
 
@@ -221,7 +221,7 @@ async function getFileIdFromCID(cid: string): Promise<string | null> {
     
     const file = files.files?.find(f => f.cid === cid);
     return file?.id || null;
-  } catch (error) {
+  } catch {
     return null;
   }
 }

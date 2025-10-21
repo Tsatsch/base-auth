@@ -9,7 +9,7 @@ function getUrlHost(request: NextRequest): string {
     try {
       const url = new URL(origin);
       return url.host;
-    } catch (error) {
+    } catch {
     }
   }
 

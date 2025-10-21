@@ -191,7 +191,7 @@ export function parseMigrationURI(uri: string): MigrationParseResult {
             type: typeToString(param.type || 2),
             counter: param.counter ? Number(param.counter) : undefined,
           });
-        } catch (err) {
+        } catch {
         }
       }
     }

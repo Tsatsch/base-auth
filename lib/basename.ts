@@ -20,7 +20,7 @@ export async function resolveBaseName(address: string): Promise<string | null> {
     }
     
     return null;
-  } catch (error) {
+  } catch {
     return null;
   }
 }

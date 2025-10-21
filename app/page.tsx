@@ -79,7 +79,7 @@ export default function Home() {
       try {
         const resolvedBaseName = await resolveBaseName(address);
         setBaseName(resolvedBaseName);
-      } catch (error) {
+      } catch {
         setBaseName(null);
       } finally {
         setIsResolvingBaseName(false);
@@ -95,7 +95,7 @@ export default function Home() {
     }
   }, [isConnected, isFrameReady, connect]);
 
-  const { writeContract, data: writeData, error: writeError, isPending: _isWritePending, reset: resetWrite } = useWriteContract();
+  const { writeContract, data: writeData, error: _writeError, isPending: _isWritePending, reset: resetWrite } = useWriteContract();
   const { signMessage, data: signature, error: signError, isPending: isSignPending } = useSignMessage();
 
   useEffect(() => {
@@ -140,7 +140,7 @@ export default function Home() {
     },
   });
   
-  const { data: userData, refetch: refetchUserData, error: readError, isLoading: isReadLoading } = useReadContract({
+  const { data: userData, refetch: refetchUserData, error: _readError, isLoading: _isReadLoading } = useReadContract({
     address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
     abi: AUTHENTICATOR_ABI,
     functionName: "getUserData",
@@ -186,12 +186,12 @@ export default function Home() {
             index: i,
             logoCID: account.logoCID,
           });
-        } catch (err) {
+        } catch {
         }
       }
       
       setAccounts(decrypted);
-    } catch (err) {
+    } catch {
       setAccounts([]);
     }
   }, [userBundleCID, address, vaultSignature]);
@@ -411,7 +411,7 @@ export default function Home() {
         args: [newBundleCID],
       });
 
-    } catch (err) {
+    } catch {
       setIsLoading(false);
     }
   };

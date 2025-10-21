@@ -13,7 +13,7 @@ export function generateTOTP(secret: string, accountName: string = "Account"): s
 
     const token = totp.generate();
     return token;
-  } catch (error) {
+  } catch {
     return "000000";
   }
 }

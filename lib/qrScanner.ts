@@ -148,7 +148,7 @@ function parseQRCodeData(qrData: QrScanner.ScanResult): { secret: string; issuer
     }
     
     return null;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -177,7 +177,7 @@ function parseOTPAuthURI(uri: string): { secret: string; issuer?: string; accoun
       issuer,
       account
     };
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -191,7 +191,7 @@ export async function checkCameraSupport(): Promise<boolean> {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
     stream.getTracks().forEach(track => track.stop());
     return true;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
