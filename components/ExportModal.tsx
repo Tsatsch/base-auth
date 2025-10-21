@@ -124,67 +124,68 @@ export default function ExportModal({ accounts, onClose, isOpen }: ExportModalPr
         <div style={{ padding: '1rem' }}>
           {showDisclaimer ? (
             // Disclaimer screen
-            <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
+            <div style={{ textAlign: 'center', padding: '1rem' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>⚠️</div>
               <h3 style={{ 
-                fontSize: '1.25rem', 
+                fontSize: '1rem', 
                 fontWeight: 600, 
-                marginBottom: '1rem',
+                marginBottom: '0.75rem',
                 color: 'var(--text-primary)'
               }}>
                 Security Warning
               </h3>
               <p style={{ 
-                fontSize: '0.875rem', 
-                lineHeight: '1.6',
+                fontSize: '0.8rem', 
+                lineHeight: '1.4',
                 color: 'var(--text-secondary)',
-                marginBottom: '1.5rem',
+                marginBottom: '1rem',
                 textAlign: 'left'
               }}>
-                The QR codes you are about to view contain <strong>sensitive information</strong> that 
-                can be used to access your 2FA accounts. Please ensure:
+                QR codes contain <strong>sensitive 2FA data</strong>. Ensure:
               </p>
               <ul style={{ 
                 textAlign: 'left', 
-                fontSize: '0.875rem',
-                lineHeight: '1.8',
+                fontSize: '0.75rem',
+                lineHeight: '1.5',
                 color: 'var(--text-secondary)',
-                marginBottom: '2rem',
-                paddingLeft: '1.5rem'
+                marginBottom: '1.25rem',
+                paddingLeft: '1rem'
               }}>
-                <li>You are in a private location</li>
-                <li>No one can see your screen</li>
-                <li>No cameras are recording</li>
-                <li>You trust the device you&apos;re scanning to</li>
+                <li>Private location</li>
+                <li>No one watching</li>
+                <li>No cameras recording</li>
+                <li>Trusted scanning device</li>
               </ul>
               <p style={{ 
-                fontSize: '0.75rem', 
+                fontSize: '0.7rem', 
                 color: 'var(--text-tertiary)',
-                marginBottom: '2rem',
-                fontStyle: 'italic'
+                marginBottom: '1.25rem',
+                fontStyle: 'italic',
+                lineHeight: '1.3'
               }}>
-                Anyone with access to these QR codes can generate authentication codes for your accounts.
+                Anyone with these QR codes can access your accounts.
               </p>
               <button
                 onClick={handleAcceptDisclaimer}
                 className={styles.submitButton}
                 type="button"
+                style={{ fontSize: '0.875rem', padding: '0.75rem 1rem' }}
               >
-                I Understand, Show QR Codes
+                I Understand
               </button>
             </div>
           ) : (
             // QR code display screen
             <>
               {isGenerating ? (
-                <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-                  <span className={styles.spinner} style={{ fontSize: '2rem' }} aria-hidden />
-                  <p style={{ marginTop: '1rem', color: 'var(--text-secondary)' }}>
+                <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+                  <span className={styles.spinner} style={{ fontSize: '1.5rem' }} aria-hidden />
+                  <p style={{ marginTop: '0.75rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                     Generating QR codes...
                   </p>
                 </div>
               ) : error ? (
-                <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+                <div style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
                   <div className={styles.error}>{error}</div>
                   <button
                     onClick={() => {
@@ -192,7 +193,7 @@ export default function ExportModal({ accounts, onClose, isOpen }: ExportModalPr
                       generateQRCodes();
                     }}
                     className={styles.retryButton}
-                    style={{ marginTop: '1rem' }}
+                    style={{ marginTop: '0.75rem', fontSize: '0.875rem', padding: '0.5rem 1rem' }}
                     type="button"
                   >
                     Retry
@@ -201,19 +202,19 @@ export default function ExportModal({ accounts, onClose, isOpen }: ExportModalPr
               ) : qrCodes.length > 0 ? (
                 <>
                   {/* QR Code Display */}
-                  <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                  <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
                     <h3 style={{ 
-                      fontSize: '1rem', 
+                      fontSize: '0.875rem', 
                       fontWeight: 600, 
-                      marginBottom: '0.5rem',
+                      marginBottom: '0.375rem',
                       color: 'var(--text-primary)'
                     }}>
                       {accounts[currentIndex].accountName}
                     </h3>
                     <p style={{ 
-                      fontSize: '0.875rem', 
+                      fontSize: '0.75rem', 
                       color: 'var(--text-secondary)',
-                      marginBottom: '1rem'
+                      marginBottom: '0.75rem'
                     }}>
                       QR Code {currentIndex + 1} of {qrCodes.length}
                     </p>
@@ -222,16 +223,16 @@ export default function ExportModal({ accounts, onClose, isOpen }: ExportModalPr
                       display: 'flex',
                       justifyContent: 'center',
                       alignItems: 'center',
-                      padding: '1rem',
+                      padding: '0.75rem',
                       backgroundColor: 'white',
-                      borderRadius: '12px',
-                      marginBottom: '1rem'
+                      borderRadius: '8px',
+                      marginBottom: '0.75rem'
                     }}>
                       <Image
                         src={qrCodes[currentIndex]}
                         alt={`QR code for ${accounts[currentIndex].accountName}`}
-                        width={256}
-                        height={256}
+                        width={200}
+                        height={200}
                         style={{ display: 'block' }}
                       />
                     </div>
@@ -241,18 +242,18 @@ export default function ExportModal({ accounts, onClose, isOpen }: ExportModalPr
                       display: 'flex',
                       justifyContent: 'center',
                       alignItems: 'center',
-                      gap: '2rem',
-                      marginTop: '1rem'
+                      gap: '1.5rem',
+                      marginTop: '0.75rem'
                     }}>
                       <button
                         onClick={handlePrevious}
                         disabled={currentIndex === 0}
                         className={styles.connectButton}
                         style={{
-                          width: '48px',
-                          height: '48px',
+                          width: '40px',
+                          height: '40px',
                           padding: 0,
-                          fontSize: '1.5rem',
+                          fontSize: '1.25rem',
                           opacity: currentIndex === 0 ? 0.3 : 1,
                           cursor: currentIndex === 0 ? 'not-allowed' : 'pointer'
                         }}
@@ -263,9 +264,9 @@ export default function ExportModal({ accounts, onClose, isOpen }: ExportModalPr
                       </button>
                       
                       <div style={{
-                        fontSize: '0.875rem',
+                        fontSize: '0.75rem',
                         color: 'var(--text-secondary)',
-                        minWidth: '60px',
+                        minWidth: '50px',
                         textAlign: 'center'
                       }}>
                         {currentIndex + 1} / {qrCodes.length}
@@ -276,10 +277,10 @@ export default function ExportModal({ accounts, onClose, isOpen }: ExportModalPr
                         disabled={currentIndex === qrCodes.length - 1}
                         className={styles.connectButton}
                         style={{
-                          width: '48px',
-                          height: '48px',
+                          width: '40px',
+                          height: '40px',
                           padding: 0,
-                          fontSize: '1.5rem',
+                          fontSize: '1.25rem',
                           opacity: currentIndex === qrCodes.length - 1 ? 0.3 : 1,
                           cursor: currentIndex === qrCodes.length - 1 ? 'not-allowed' : 'pointer'
                         }}
@@ -292,14 +293,13 @@ export default function ExportModal({ accounts, onClose, isOpen }: ExportModalPr
                   </div>
 
                   {/* Instructions */}
-                  <p className={styles.hint} style={{ marginTop: '1.5rem', marginBottom: 0 }}>
-                    💡 Scan this QR code with Google Authenticator or any compatible authenticator app 
-                    to import this account. Use the arrows to view other accounts.
+                  <p className={styles.hint} style={{ marginTop: '1rem', marginBottom: 0, fontSize: '0.75rem' }}>
+                    💡 Scan with Google Authenticator or any compatible app. Use arrows to navigate.
                   </p>
                 </>
               ) : (
-                <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-                  <p style={{ color: 'var(--text-secondary)' }}>
+                <div style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                     No accounts available to export.
                   </p>
                 </div>
