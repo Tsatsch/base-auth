@@ -615,7 +615,7 @@ export default function Home() {
     console.log("🔒 Vault locked");
   };
 
-  const handleQRScanSuccess = (result: QRScanResult) => {
+  const handleQRScanSuccess = useCallback((result: QRScanResult) => {
     if (result.success && result.data) {
       setNewSecret(result.data.secret);
       if (result.data.account && result.data.account !== 'Scanned Account') {
@@ -626,7 +626,7 @@ export default function Home() {
       setShowQRScanner(false);
       console.log("✅ QR code scanned successfully:", result.data);
     }
-  };
+  }, []);
 
   return (
     <div className={styles.container}>

@@ -73,7 +73,7 @@ export default function QRScanner({ onScanSuccess, onClose, isOpen }: QRScannerP
       }
       setIsScanning(false);
     };
-  }, [isOpen, cameraSupported, onScanSuccess]);
+  }, [isOpen, cameraSupported]);
 
   if (!isOpen) {
     return null;
@@ -144,18 +144,23 @@ export default function QRScanner({ onScanSuccess, onClose, isOpen }: QRScannerP
               {cameraSupported && (
                 <button
                   className={styles.retryButton}
-                  onClick={() => {
+                  onClick={async () => {
                     setError(null);
-                    setIsScanning(false);
+                    setIsScanning(true);
                     if (videoRef.current) {
-                      startQRScan(videoRef.current, (result) => {
+                      try {
+                        await startQRScan(videoRef.current, (result) => {
+                          setIsScanning(false);
+                          if (result.success && result.data) {
+                            onScanSuccess(result);
+                          } else {
+                            setError(result.error || 'Failed to scan QR code');
+                          }
+                        });
+                      } catch (err) {
                         setIsScanning(false);
-                        if (result.success && result.data) {
-                          onScanSuccess(result);
-                        } else {
-                          setError(result.error || 'Failed to scan QR code');
-                        }
-                      });
+                        setError(err instanceof Error ? err.message : 'Failed to start camera');
+                      }
                     }
                   }}
                   type="button"

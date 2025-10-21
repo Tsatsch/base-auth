@@ -11,6 +11,8 @@ export interface QRScanResult {
     secret: string;
     issuer?: string;
     account?: string;
+    isGoogleAuthMigration?: boolean;
+    rawData?: string;
   };
   error?: string;
 }
@@ -34,6 +36,21 @@ export async function startQRScan(
       });
       return;
     }
+
+    // Patch canvas context creation to add willReadFrequently attribute
+    // This prevents the Canvas2D performance warning when using getImageData repeatedly
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    const patchedGetContext = function(this: HTMLCanvasElement, contextType: string, contextAttributes?: any) {
+      if (contextType === '2d') {
+        const attrs = contextAttributes || {};
+        attrs.willReadFrequently = true;
+        return originalGetContext.call(this, contextType, attrs);
+      }
+      return originalGetContext.call(this, contextType, contextAttributes);
+    };
+    
+    // Temporarily patch the getContext method
+    HTMLCanvasElement.prototype.getContext = patchedGetContext as any;
 
     // Create QR scanner instance
     const qrScanner = new QrScanner(
@@ -66,6 +83,9 @@ export async function startQRScan(
       }
     );
 
+    // Restore original getContext method
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+
     // Start scanning
     await qrScanner.start();
     
@@ -74,6 +94,13 @@ export async function startQRScan(
     
   } catch (error) {
     console.error('QR Scanner error:', error);
+    
+    // Restore original getContext method in case of error
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    if ((HTMLCanvasElement.prototype.getContext as any).name === 'patchedGetContext') {
+      HTMLCanvasElement.prototype.getContext = originalGetContext;
+    }
+    
     onResult({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to start camera'
@@ -99,9 +126,20 @@ export function stopQRScan(videoElement: HTMLVideoElement): void {
  * @param qrData Raw QR code data
  * @returns Parsed TOTP data or null if invalid
  */
-function parseQRCodeData(qrData: QrScanner.ScanResult): { secret: string; issuer?: string; account?: string } | null {
+function parseQRCodeData(qrData: QrScanner.ScanResult): { secret: string; issuer?: string; account?: string; isGoogleAuthMigration?: boolean; rawData?: string } | null {
   try {
     const data = qrData.data;
+    
+    // Check if it's a Google Authenticator migration URI
+    if (data.startsWith('otpauth-migration://offline?data=')) {
+      return {
+        secret: '', // Will be handled separately
+        isGoogleAuthMigration: true,
+        rawData: data,
+        issuer: 'Google Authenticator',
+        account: 'Multiple Accounts (Bulk Import)'
+      };
+    }
     
     // Check if it's a TOTP URI
     if (data.startsWith('otpauth://totp/')) {
