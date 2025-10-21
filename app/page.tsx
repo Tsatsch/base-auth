@@ -2,9 +2,10 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnect, useWaitForTransactionReceipt, useSignMessage } from "wagmi";
+import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnect, useWaitForTransactionReceipt, useSignMessage, useSwitchChain, useChainId } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { v4 as uuidv4 } from "uuid";
+import { base, baseSepolia } from "wagmi/chains";
 import styles from "./page.module.css";
 import { encryptSecretGCM, decryptSecretGCM, validateSecret, cleanSecret } from "../lib/crypto";
 import { generateTOTP, getTimeRemaining } from "../lib/totp";
@@ -30,11 +31,18 @@ interface DecryptedAccount {
 }
 
 
+// Determine which network to use based on environment variable
+const NETWORK = process.env.NEXT_PUBLIC_NETWORK || "testnet";
+const REQUIRED_CHAIN = NETWORK === "mainnet" ? base : baseSepolia;
+const REQUIRED_CHAIN_ID = REQUIRED_CHAIN.id;
+
 export default function Home() {
   const { isFrameReady, setFrameReady } = useMiniKit();
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
+  const chainId = useChainId();
+  const { switchChain, isPending: isSwitchingChain } = useSwitchChain();
   
   const [accounts, setAccounts] = useState<DecryptedAccount[]>([]);
   const [timeRemaining, setTimeRemaining] = useState(30);
@@ -327,6 +335,39 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [accounts.length]);
 
+  // Helper function to ensure user is on the correct network
+  const ensureCorrectNetwork = async (): Promise<boolean> => {
+    if (!isConnected || !address) {
+      setError("Please connect your wallet first");
+      return false;
+    }
+
+    // Check if user is on the correct network
+    if (chainId !== REQUIRED_CHAIN_ID) {
+      try {
+        console.log(`🔄 Switching network from chain ${chainId} to ${REQUIRED_CHAIN_ID} (${REQUIRED_CHAIN.name})...`);
+        setError(`Please switch to ${REQUIRED_CHAIN.name} to continue`);
+        
+        // Request network switch
+        await switchChain({ chainId: REQUIRED_CHAIN_ID });
+        
+        console.log(`✅ Successfully switched to ${REQUIRED_CHAIN.name}`);
+        setError("");
+        return true;
+      } catch (err) {
+        console.error("❌ Failed to switch network:", err);
+        if (err instanceof Error) {
+          setError(`Failed to switch network: ${err.message}`);
+        } else {
+          setError(`Please switch to ${REQUIRED_CHAIN.name} network to continue`);
+        }
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) {
@@ -359,7 +400,6 @@ export default function Home() {
       return;
     }
 
-
     if (!newAccountName.trim()) {
       setError("Please enter an account name");
       return;
@@ -374,6 +414,12 @@ export default function Home() {
     
     if (!validateSecret(cleanedSecret)) {
       setError("Invalid 2FA secret format. Please enter a valid base32 encoded secret.");
+      return;
+    }
+
+    // Ensure user is on the correct network before proceeding
+    const isOnCorrectNetwork = await ensureCorrectNetwork();
+    if (!isOnCorrectNetwork) {
       return;
     }
 
@@ -469,6 +515,11 @@ export default function Home() {
   const handleDeleteAccount = async (index: number) => {
     if (!address) return;
 
+    // Ensure user is on the correct network before proceeding
+    const isOnCorrectNetwork = await ensureCorrectNetwork();
+    if (!isOnCorrectNetwork) {
+      return;
+    }
 
     try {
       setIsLoading(true);
@@ -598,6 +649,11 @@ export default function Home() {
       return;
     }
 
+    // Ensure user is on the correct network before proceeding
+    const isOnCorrectNetwork = await ensureCorrectNetwork();
+    if (!isOnCorrectNetwork) {
+      return;
+    }
 
     try {
       setIsLoading(true);
@@ -981,8 +1037,13 @@ export default function Home() {
                 </div>
               )}
 
-              <button type="submit" className={styles.submitButton} disabled={isLoading}>
-                {isLoading ? (
+              <button type="submit" className={styles.submitButton} disabled={isLoading || isSwitchingChain}>
+                {isSwitchingChain ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className={styles.spinner} aria-hidden />
+                    Switching Network...
+                  </span>
+                ) : isLoading ? (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span className={styles.spinner} aria-hidden />
                     {uploadingToIPFS ? 'Uploading to IPFS...' : 'Adding...'}

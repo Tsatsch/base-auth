@@ -11,37 +11,25 @@ import "@coinbase/onchainkit/styles.css";
 // Options: "testnet" (Base Sepolia) or "mainnet" (Base)
 const NETWORK = process.env.NEXT_PUBLIC_NETWORK || "testnet";
 
-// Map network to chain and RPC URL
+// Map network to chain and RPC URL (for OnchainKit)
 const networkConfig = NETWORK === "mainnet" 
   ? { chain: base, rpcUrl: "https://mainnet.base.org" }
   : { chain: baseSepolia, rpcUrl: "https://sepolia.base.org" };
 
-// Create wagmi config with injected connector for Base Mini-App
-const wagmiConfig = NETWORK === "mainnet"
-  ? createConfig({
-      chains: [base],
-      connectors: [
-        injected({
-          target: "metaMask", // This will use the injected provider from Base app
-        }),
-      ],
-      transports: {
-        [base.id]: http("https://mainnet.base.org"),
-      },
-      ssr: true,
-    })
-  : createConfig({
-      chains: [baseSepolia],
-      connectors: [
-        injected({
-          target: "metaMask", // This will use the injected provider from Base app
-        }),
-      ],
-      transports: {
-        [baseSepolia.id]: http("https://sepolia.base.org"),
-      },
-      ssr: true,
-    });
+// Create wagmi config with both chains enabled to allow network switching
+const wagmiConfig = createConfig({
+  chains: [base, baseSepolia],
+  connectors: [
+    injected({
+      target: "metaMask", // This will use the injected provider from Base app
+    }),
+  ],
+  transports: {
+    [base.id]: http("https://mainnet.base.org"),
+    [baseSepolia.id]: http("https://sepolia.base.org"),
+  },
+  ssr: true,
+});
 
 // Create a client for React Query
 const queryClient = new QueryClient({
