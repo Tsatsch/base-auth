@@ -3,116 +3,94 @@ pragma solidity ^0.8.20;
 
 /**
  * @title TwoFactorAuthenticator
- * @dev A smart contract to store IPFS CIDs pointing to encrypted 2FA secrets
- * @notice This contract stores only IPFS CIDs. All encryption is done client-side before IPFS upload.
+ * @dev A smart contract to store IPFS CIDs pointing to encrypted 2FA bundles
+ * @notice This contract stores one IPFS CID per user, pointing to a bundle containing all their 2FA accounts.
+ * All encryption is done client-side before IPFS upload.
  * Sensitive data never touches the blockchain directly, only immutable content references.
  */
 contract TwoFactorAuthenticator {
-    struct Account {
-        string accountName;
-        string ipfsCID;        // IPFS Content Identifier pointing to encrypted data
-        uint256 timestamp;
+    struct UserData {
+        string ipfsCID;        // IPFS Content Identifier pointing to encrypted bundle
+        uint256 timestamp;     // Last update timestamp
+        bool exists;           // Track if user has data
     }
 
-    // Mapping from user address to their array of 2FA accounts
-    mapping(address => Account[]) private userAccounts;
+    // Mapping from user address to their IPFS bundle CID
+    mapping(address => UserData) private userData;
 
     // Events
-    event SecretAdded(address indexed user, string accountName, string ipfsCID, uint256 timestamp);
-    event SecretRemoved(address indexed user, uint256 index, uint256 timestamp);
-    event SecretUpdated(address indexed user, uint256 index, string ipfsCID, uint256 timestamp);
+    event UserDataUpdated(address indexed user, string ipfsCID, uint256 timestamp);
+    event UserDataRemoved(address indexed user, uint256 timestamp);
 
     /**
-     * @dev Add a new 2FA account with IPFS CID reference
-     * @param _accountName The name of the account (e.g., "Google", "GitHub")
-     * @param _ipfsCID The IPFS Content Identifier pointing to encrypted data
+     * @dev Set or update the user's IPFS bundle CID
+     * @param _ipfsCID The IPFS Content Identifier pointing to encrypted bundle containing all accounts
      */
-    function addSecret(string memory _accountName, string memory _ipfsCID) public {
-        require(bytes(_accountName).length > 0, "Account name cannot be empty");
+    function setUserData(string memory _ipfsCID) public {
         require(bytes(_ipfsCID).length > 0, "IPFS CID cannot be empty");
         require(bytes(_ipfsCID).length >= 46, "Invalid IPFS CID format"); // Basic CID length check
 
-        userAccounts[msg.sender].push(Account({
-            accountName: _accountName,
+        userData[msg.sender] = UserData({
             ipfsCID: _ipfsCID,
-            timestamp: block.timestamp
-        }));
-
-        emit SecretAdded(msg.sender, _accountName, _ipfsCID, block.timestamp);
-    }
-
-    /**
-     * @dev Retrieve all encrypted secrets for the calling user
-     * @return Array of Account structs containing all user's 2FA accounts
-     */
-    function getSecrets() public view returns (Account[] memory) {
-        return userAccounts[msg.sender];
-    }
-
-    /**
-     * @dev Get the count of 2FA accounts for the calling user
-     * @return The number of accounts stored
-     */
-    function getSecretCount() public view returns (uint256) {
-        return userAccounts[msg.sender].length;
-    }
-
-    /**
-     * @dev Remove a 2FA account at a specific index
-     * @param _index The index of the account to remove
-     */
-    function removeSecret(uint256 _index) public {
-        require(_index < userAccounts[msg.sender].length, "Index out of bounds");
-
-        // Move the last element to the deleted position and pop
-        uint256 lastIndex = userAccounts[msg.sender].length - 1;
-        if (_index != lastIndex) {
-            userAccounts[msg.sender][_index] = userAccounts[msg.sender][lastIndex];
-        }
-        userAccounts[msg.sender].pop();
-
-        emit SecretRemoved(msg.sender, _index, block.timestamp);
-    }
-
-    /**
-     * @dev Update an existing 2FA account's IPFS CID
-     * @param _index The index of the account to update
-     * @param _accountName The new account name
-     * @param _ipfsCID The new IPFS Content Identifier
-     */
-    function updateSecret(uint256 _index, string memory _accountName, string memory _ipfsCID) public {
-        require(_index < userAccounts[msg.sender].length, "Index out of bounds");
-        require(bytes(_accountName).length > 0, "Account name cannot be empty");
-        require(bytes(_ipfsCID).length > 0, "IPFS CID cannot be empty");
-        require(bytes(_ipfsCID).length >= 46, "Invalid IPFS CID format");
-
-        userAccounts[msg.sender][_index] = Account({
-            accountName: _accountName,
-            ipfsCID: _ipfsCID,
-            timestamp: block.timestamp
+            timestamp: block.timestamp,
+            exists: true
         });
 
-        emit SecretUpdated(msg.sender, _index, _ipfsCID, block.timestamp);
+        emit UserDataUpdated(msg.sender, _ipfsCID, block.timestamp);
     }
-    
+
     /**
-     * @dev Get a specific account's details by index
-     * @param _index The index of the account to retrieve
-     * @return Account struct containing account name, IPFS CID, and timestamp
-     */
-    function getAccount(uint256 _index) public view returns (Account memory) {
-        require(_index < userAccounts[msg.sender].length, "Index out of bounds");
-        return userAccounts[msg.sender][_index];
-    }
-    
-    /**
-     * @dev Get IPFS CID for a specific account
-     * @param _index The index of the account
+     * @dev Retrieve the user's IPFS bundle CID
      * @return The IPFS CID string
      */
-    function getIPFSCID(uint256 _index) public view returns (string memory) {
-        require(_index < userAccounts[msg.sender].length, "Index out of bounds");
-        return userAccounts[msg.sender][_index].ipfsCID;
+    function getUserCID() public view returns (string memory) {
+        require(userData[msg.sender].exists, "No data found for user");
+        return userData[msg.sender].ipfsCID;
+    }
+
+    /**
+     * @dev Get the user's data including timestamp
+     * @return UserData struct containing IPFS CID, timestamp, and exists flag
+     */
+    function getUserData() public view returns (UserData memory) {
+        return userData[msg.sender];
+    }
+
+    /**
+     * @dev Check if user has data stored
+     * @return True if user has data, false otherwise
+     */
+    function hasData() public view returns (bool) {
+        return userData[msg.sender].exists;
+    }
+
+    /**
+     * @dev Get the timestamp of the last update
+     * @return The timestamp of the last update
+     */
+    function getLastUpdated() public view returns (uint256) {
+        require(userData[msg.sender].exists, "No data found for user");
+        return userData[msg.sender].timestamp;
+    }
+
+    /**
+     * @dev Remove the user's data (marks as removed, doesn't actually delete from blockchain)
+     */
+    function removeUserData() public {
+        require(userData[msg.sender].exists, "No data found for user");
+        
+        userData[msg.sender].exists = false;
+        
+        emit UserDataRemoved(msg.sender, block.timestamp);
+    }
+
+    /**
+     * @dev Get user data for a specific address (useful for admin/debugging)
+     * @param _user The user address to query
+     * @return UserData struct for the specified user
+     */
+    function getUserDataByAddress(address _user) public view returns (UserData memory) {
+        return userData[_user];
     }
 }
 

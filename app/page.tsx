@@ -2,15 +2,15 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnect, useWaitForTransactionReceipt, useConfig, useSignMessage, useSwitchChain } from "wagmi";
+import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnect, useWaitForTransactionReceipt, useSignMessage, useSwitchChain } from "wagmi";
 import { injected } from "wagmi/connectors";
-import { readContract } from "wagmi/actions";
 import { base, baseSepolia } from "wagmi/chains";
+import { v4 as uuidv4 } from "uuid";
 import styles from "./page.module.css";
 import { encryptSecretGCM, decryptSecretGCM, validateSecret, cleanSecret } from "../lib/crypto";
 import { generateTOTP, getTimeRemaining } from "../lib/totp";
-import { AUTHENTICATOR_ABI, AUTHENTICATOR_CONTRACT_ADDRESS, type Account } from "../lib/contract";
-import { uploadToIPFS, retrieveFromIPFS, uploadImageToIPFS, getIPFSImageURL, type SecretMetadata } from "../lib/ipfs";
+import { AUTHENTICATOR_ABI, AUTHENTICATOR_CONTRACT_ADDRESS } from "../lib/contract";
+import { uploadBundleToIPFS, retrieveBundleFromIPFS, createEmptyBundle, uploadImageToIPFS, getIPFSImageURL, type UserTOTPBundle, type TOTPAccount } from "../lib/ipfs";
 import { compressImage, isValidImageFile } from "../lib/imageCompression";
 import { VAULT_UNLOCK_MESSAGE, isValidSignature } from "../lib/signature";
 import QRScanner from "../components/QRScanner";
@@ -18,6 +18,7 @@ import { QRScanResult } from "../lib/qrScanner";
 import QRCodeGenerator from "../components/QRCodeGenerator";
 
 interface DecryptedAccount {
+  id: string;
   accountName: string;
   secret: string;
   code: string;
@@ -39,7 +40,6 @@ export default function Home() {
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
-  const config = useConfig();
   
   // Get current network configuration
   const networkConfig = getCurrentNetworkConfig();
@@ -194,10 +194,10 @@ export default function Home() {
     }
   }, [pendingTxHash, isTxPending, isTxConfirmed]);
   
-  const { data: secretsData, refetch: refetchSecrets, error: readError, isLoading: isReadLoading } = useReadContract({
+  const { data: userData, refetch: refetchUserData, error: readError, isLoading: isReadLoading } = useReadContract({
     address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
     abi: AUTHENTICATOR_ABI,
-    functionName: "getSecrets",
+    functionName: "getUserData",
     account: address, // CRITICAL: Pass the account to set msg.sender
     args: [],
     query: {
@@ -208,19 +208,8 @@ export default function Home() {
     },
   });
   
-  // Also read secret count for debugging
-  const { data: secretCount, refetch: refetchCount } = useReadContract({
-    address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
-    abi: AUTHENTICATOR_ABI,
-    functionName: "getSecretCount",
-    account: address, // CRITICAL: Pass the account to set msg.sender
-    args: [],
-    query: {
-      enabled: isConnected && !!address,
-      staleTime: 0,
-      gcTime: 0,
-    },
-  });
+  // Extract bundle CID from userData
+  const userBundleCID = userData?.exists ? userData.ipfsCID : null;
   
   // Log read contract state
   useEffect(() => {
@@ -229,53 +218,51 @@ export default function Home() {
     console.log("=".repeat(60));
     console.log("Connected Wallet Address:", address);
     console.log("Contract Address:", AUTHENTICATOR_CONTRACT_ADDRESS);
-    console.log("Secret Count:", secretCount?.toString());
-    console.log("Secrets Data Length:", secretsData ? (secretsData as Account[]).length : 0);
+    console.log("User Data:", userData);
+    console.log("User Bundle CID:", userBundleCID);
     console.log("Is Connected:", isConnected);
     console.log("Read Error:", readError);
     console.log("Is Loading:", isReadLoading);
-    if (secretsData && (secretsData as Account[]).length > 0) {
-      console.log("Accounts found:", (secretsData as Account[]).map((acc: Account) => acc.accountName));
-    }
     console.log("=".repeat(60));
-  }, [secretsData, secretCount, readError, isReadLoading, address, isConnected]);
+  }, [userData, userBundleCID, readError, isReadLoading, address, isConnected]);
 
-  // Load and decrypt accounts from IPFS
+  // Load and decrypt accounts from IPFS bundle
   const loadAccounts = useCallback(async () => {
-    if (!secretsData || !address || !vaultSignature) {
-      console.log("No secrets data, address, or vault signature available");
+    if (!userBundleCID || !address || !vaultSignature) {
+      console.log("No bundle CID, address, or vault signature available");
       setAccounts([]);
       return;
     }
 
     try {
-      console.log("Loading accounts, count:", (secretsData as Account[]).length);
+      console.log("📦 Loading user bundle from IPFS:", userBundleCID);
+      
+      // Retrieve user bundle from IPFS
+      const bundle: UserTOTPBundle = await retrieveBundleFromIPFS(userBundleCID);
+      
+      console.log("Loading accounts, count:", bundle.accounts.length);
       const decrypted: DecryptedAccount[] = [];
       
-      for (let i = 0; i < (secretsData as Account[]).length; i++) {
-        const account = (secretsData as Account[])[i];
+      for (let i = 0; i < bundle.accounts.length; i++) {
+        const account = bundle.accounts[i];
         try {
-          console.log(`📦 Retrieving account ${i} from IPFS: ${account.ipfsCID}`);
-          
-          // Retrieve encrypted metadata from IPFS
-          const metadata: SecretMetadata = await retrieveFromIPFS(account.ipfsCID);
-          
           // Decrypt the secret using AES-256-GCM with signature
           const decryptedSecret = await decryptSecretGCM(
-            metadata.encryptedSecret,
-            metadata.iv,
-            metadata.salt,
+            account.encryptedSecret,
+            account.iv,
+            account.salt,
             vaultSignature
           );
           
           const code = generateTOTP(decryptedSecret, account.accountName);
           
           decrypted.push({
+            id: account.id,
             accountName: account.accountName,
             secret: decryptedSecret,
             code,
             index: i,
-            logoCID: metadata.logoCID,
+            logoCID: account.logoCID,
           });
           
           console.log(`✅ Successfully decrypted account: ${account.accountName}`);
@@ -288,44 +275,13 @@ export default function Home() {
       setAccounts(decrypted);
     } catch (err) {
       console.error("Error loading accounts:", err);
+      setAccounts([]);
     }
-  }, [secretsData, address, vaultSignature]);
+  }, [userBundleCID, address, vaultSignature]);
 
   useEffect(() => {
     loadAccounts();
   }, [loadAccounts]);
-
-  // Manual refetch function with explicit account parameter
-  const manualRefetch = async () => {
-    if (!address) return;
-    
-    try {
-      console.log("🔄 Manual refetch with explicit account parameter...");
-      const [secretsResult, countResult] = await Promise.all([
-        readContract(config, {
-          address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
-          abi: AUTHENTICATOR_ABI,
-          functionName: "getSecrets",
-          account: address,
-        }),
-        readContract(config, {
-          address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
-          abi: AUTHENTICATOR_ABI,
-          functionName: "getSecretCount",
-          account: address,
-        }),
-      ]);
-      
-      console.log("📊 Manual Refetch Results:");
-      console.log("  - Count:", countResult?.toString());
-      console.log("  - Secrets:", secretsResult ? (secretsResult as Account[]).length : 0);
-      
-      return { secretsResult, countResult };
-    } catch (error) {
-      console.error("Error in manual refetch:", error);
-      throw error;
-    }
-  };
 
   // Refetch when transaction is confirmed
   useEffect(() => {
@@ -343,19 +299,9 @@ export default function Home() {
       setTimeout(async () => {
         console.log("🔄 Refetching data from contract...");
         
-        // Try manual refetch first
-        try {
-          await manualRefetch();
-        } catch (error) {
-          console.error("Manual refetch failed:", error);
-        }
-        
-        // Also trigger the hook refetch
-        const countResult = await refetchCount();
-        const secretsResult = await refetchSecrets();
-        console.log("📊 Hook Refetch Results:");
-        console.log("  - Count:", countResult.data?.toString());
-        console.log("  - Secrets:", secretsResult.data ? (secretsResult.data as Account[]).length : 0);
+        // Trigger the hook refetch
+        await refetchUserData();
+        console.log("📊 User data refetched");
         console.log("=".repeat(60));
         
         setPendingTxHash(undefined);
@@ -459,14 +405,24 @@ export default function Home() {
       setError("");
       
       console.log("=".repeat(60));
-      console.log("✍️  ADDING NEW ACCOUNT WITH IPFS");
+      console.log("✍️  ADDING NEW ACCOUNT TO BUNDLE");
       console.log("=".repeat(60));
       console.log("Wallet Address:", address);
       console.log("Account Name:", newAccountName.trim());
       console.log("Contract Address:", AUTHENTICATOR_CONTRACT_ADDRESS);
       console.log("=".repeat(60));
       
-      // Step 1: Upload and compress logo if provided
+      // Step 1: Fetch existing bundle or create new one
+      let bundle: UserTOTPBundle;
+      if (userBundleCID && userBundleCID !== "") {
+        console.log("📦 Fetching existing bundle:", userBundleCID);
+        bundle = await retrieveBundleFromIPFS(userBundleCID);
+      } else {
+        console.log("🆕 Creating new bundle");
+        bundle = createEmptyBundle(address);
+      }
+      
+      // Step 2: Upload and compress logo if provided
       let logoCID: string | undefined;
       if (logoFile) {
         console.log("🖼️  Processing logo...");
@@ -479,13 +435,14 @@ export default function Home() {
         console.log("✅ Logo uploaded to IPFS:", logoCID);
       }
 
-      // Step 2: Encrypt the secret with AES-256-GCM using signature
+      // Step 3: Encrypt the secret with AES-256-GCM using signature
       console.log("🔐 Encrypting secret with AES-256-GCM using signature...");
       const { encrypted, iv, salt } = await encryptSecretGCM(cleanedSecret, vaultSignature!);
       console.log("✅ Secret encrypted");
 
-      // Step 3: Create metadata object
-      const metadata: SecretMetadata = {
+      // Step 4: Create new account object
+      const newAccount: TOTPAccount = {
+        id: uuidv4(),
         accountName: newAccountName.trim(),
         encryptedSecret: encrypted,
         algorithm: "SHA1",
@@ -497,19 +454,23 @@ export default function Home() {
         logoCID,
       };
 
-      // Step 4: Upload metadata to IPFS
-      console.log("📤 Uploading metadata to IPFS...");
-      const ipfsCID = await uploadToIPFS(metadata);
-      console.log("✅ Uploaded to IPFS:", ipfsCID);
+      // Step 5: Add to bundle
+      bundle.accounts.push(newAccount);
+      bundle.lastUpdated = Date.now();
+
+      // Step 6: Upload updated bundle to IPFS (with cleanup of old bundle)
+      console.log("📤 Uploading updated bundle to IPFS...");
+      const newBundleCID = await uploadBundleToIPFS(bundle, userBundleCID);
+      console.log("✅ Bundle uploaded:", newBundleCID);
       setUploadingToIPFS(false);
 
-      // Step 5: Store IPFS CID on blockchain
-      console.log("⛓️  Storing IPFS CID on blockchain...");
+      // Step 7: Update contract with new CID
+      console.log("⛓️  Storing bundle CID on blockchain...");
       await writeContract({
         address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
         abi: AUTHENTICATOR_ABI,
-        functionName: "addSecret",
-        args: [newAccountName.trim(), ipfsCID],
+        functionName: "setUserData",
+        args: [newBundleCID],
       });
 
       console.log("✅ Transaction submitted! Waiting for confirmation...");
@@ -545,11 +506,39 @@ export default function Home() {
     try {
       setIsLoading(true);
       
+      // Get account ID from index
+      const accountToDelete = accounts.find(acc => acc.index === index);
+      if (!accountToDelete) {
+        console.error("Account not found at index:", index);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Fetch existing bundle
+      if (!userBundleCID || userBundleCID === "") {
+        console.error("No bundle found");
+        setIsLoading(false);
+        return;
+      }
+      
+      console.log("📦 Fetching bundle to remove account...");
+      const bundle = await retrieveBundleFromIPFS(userBundleCID);
+      
+      // Remove account from bundle
+      bundle.accounts = bundle.accounts.filter(acc => acc.id !== accountToDelete.id);
+      bundle.lastUpdated = Date.now();
+      
+      // Upload updated bundle (with cleanup of old bundle)
+      console.log("📤 Uploading updated bundle...");
+      const newBundleCID = await uploadBundleToIPFS(bundle, userBundleCID);
+      console.log("✅ Bundle uploaded:", newBundleCID);
+      
+      // Update contract
       await writeContract({
         address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
         abi: AUTHENTICATOR_ABI,
-        functionName: "removeSecret",
-        args: [BigInt(index)],
+        functionName: "setUserData",
+        args: [newBundleCID],
       });
 
       // The transaction hash will be set by the useEffect watching writeData
