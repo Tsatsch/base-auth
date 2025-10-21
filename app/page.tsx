@@ -13,7 +13,6 @@ import { AUTHENTICATOR_ABI, AUTHENTICATOR_CONTRACT_ADDRESS, type Account } from 
 import { uploadToIPFS, retrieveFromIPFS, uploadImageToIPFS, getIPFSImageURL, type SecretMetadata } from "../lib/ipfs";
 import { compressImage, isValidImageFile } from "../lib/imageCompression";
 import { VAULT_UNLOCK_MESSAGE, isValidSignature } from "../lib/signature";
-import { parseOTPAuthURI } from "../lib/totp";
 import QRScanner from "../components/QRScanner";
 import { QRScanResult } from "../lib/qrScanner";
 import QRCodeGenerator from "../components/QRCodeGenerator";
@@ -112,7 +111,7 @@ export default function Home() {
       
       return () => clearTimeout(timer);
     }
-  }, [isConnected, isFrameReady, hasAttemptedNetworkSwitch]);
+  }, [isConnected, isFrameReady, hasAttemptedNetworkSwitch, ensureCorrectNetwork]);
 
   // Contract interactions
   const { writeContract, data: writeData, error: writeError, isPending: _isWritePending, reset: resetWrite } = useWriteContract();

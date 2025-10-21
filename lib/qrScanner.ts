@@ -70,7 +70,7 @@ export async function startQRScan(
     await qrScanner.start();
     
     // Store scanner instance for cleanup
-    (videoElement as any).qrScanner = qrScanner;
+    (videoElement as HTMLVideoElement & { qrScanner?: QrScanner }).qrScanner = qrScanner;
     
   } catch (error) {
     console.error('QR Scanner error:', error);
@@ -86,11 +86,11 @@ export async function startQRScan(
  * @param videoElement HTML video element used for scanning
  */
 export function stopQRScan(videoElement: HTMLVideoElement): void {
-  const qrScanner = (videoElement as any).qrScanner;
+  const qrScanner = (videoElement as HTMLVideoElement & { qrScanner?: QrScanner }).qrScanner;
   if (qrScanner) {
     qrScanner.stop();
     qrScanner.destroy();
-    delete (videoElement as any).qrScanner;
+    delete (videoElement as HTMLVideoElement & { qrScanner?: QrScanner }).qrScanner;
   }
 }
 
@@ -149,8 +149,8 @@ function parseOTPAuthURI(uri: string): { secret: string; issuer?: string; accoun
     const pathname = url.pathname.substring(1); // Remove leading slash
     const parts = pathname.split(':');
     
-    let issuer = url.searchParams.get('issuer') || parts[0] || 'Unknown';
-    let account = parts[1] || parts[0] || 'Account';
+    const issuer = url.searchParams.get('issuer') || parts[0] || 'Unknown';
+    const account = parts[1] || parts[0] || 'Account';
     
     return {
       secret: secret.toUpperCase(),

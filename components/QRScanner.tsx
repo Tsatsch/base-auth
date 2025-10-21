@@ -25,10 +25,10 @@ export default function QRScanner({ onScanSuccess, onClose, isOpen }: QRScannerP
         if (!supported) {
           setError('Camera not available or access denied. Please check your camera permissions.');
         }
-      } catch (err) {
-        setCameraSupported(false);
-        setError('Failed to check camera support.');
-      }
+    } catch {
+      setCameraSupported(false);
+      setError('Failed to check camera support.');
+    }
     };
 
     if (isOpen) {
@@ -66,9 +66,10 @@ export default function QRScanner({ onScanSuccess, onClose, isOpen }: QRScannerP
     startScanning();
 
     // Cleanup function
+    const videoElement = videoRef.current;
     return () => {
-      if (videoRef.current) {
-        stopQRScan(videoRef.current);
+      if (videoElement) {
+        stopQRScan(videoElement);
       }
       setIsScanning(false);
     };

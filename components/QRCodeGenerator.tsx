@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from 'react';
-import { generateTOTPQRCode, generateSimpleQRCode, generateTestTOTPQRCode } from '../lib/qrGenerator';
+import Image from 'next/image';
+import { generateTOTPQRCode, generateTestTOTPQRCode } from '../lib/qrGenerator';
 import styles from '../app/page.module.css';
 
 interface QRCodeGeneratorProps {
@@ -172,9 +173,11 @@ export default function QRCodeGenerator({ onClose, isOpen }: QRCodeGeneratorProp
             <div className={styles.qrCodeDisplay}>
               <h3 className={styles.qrCodeTitle}>Generated QR Code</h3>
               <div className={styles.qrCodeImageContainer}>
-                <img
+                <Image
                   src={qrCodeDataURL}
                   alt="Generated QR Code"
+                  width={200}
+                  height={200}
                   className={styles.qrCodeImage}
                 />
               </div>
