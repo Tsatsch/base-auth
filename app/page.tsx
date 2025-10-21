@@ -29,10 +29,7 @@ interface DecryptedAccount {
   logoCID?: string;
 }
 
-
-// Determine which network to use based on environment variable
-const NETWORK = process.env.NEXT_PUBLIC_NETWORK || "testnet";
-const REQUIRED_CHAIN = NETWORK === "mainnet" ? base : baseSepolia;
+const REQUIRED_CHAIN = (process.env.NEXT_PUBLIC_NETWORK || "testnet") === "mainnet" ? base : baseSepolia;
 const REQUIRED_CHAIN_ID = REQUIRED_CHAIN.id;
 
 export default function Home() {
@@ -59,24 +56,18 @@ export default function Home() {
   const [uploadingToIPFS, setUploadingToIPFS] = useState(false);
   const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | undefined>();
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-  
-  // Vault unlock state
   const [vaultSignature, setVaultSignature] = useState<string | null>(null);
   const [isVaultUnlocked, setIsVaultUnlocked] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
-  
-  // Base name resolution state
   const [baseName, setBaseName] = useState<string | null>(null);
   const [isResolvingBaseName, setIsResolvingBaseName] = useState(false);
 
-  // Initialize the miniapp
   useEffect(() => {
     if (!isFrameReady) {
       setFrameReady();
     }
   }, [setFrameReady, isFrameReady]);
 
-  // Resolve base name when wallet connects
   useEffect(() => {
     const resolveWalletBaseName = async () => {
       if (!address || !isConnected) {
@@ -89,7 +80,6 @@ export default function Home() {
         const resolvedBaseName = await resolveBaseName(address);
         setBaseName(resolvedBaseName);
       } catch (error) {
-        console.warn('Failed to resolve base name:', error);
         setBaseName(null);
       } finally {
         setIsResolvingBaseName(false);
@@ -99,23 +89,15 @@ export default function Home() {
     resolveWalletBaseName();
   }, [address, isConnected]);
 
-
-  // Auto-connect to injected provider on mount
   useEffect(() => {
     if (!isConnected && isFrameReady) {
-      // Attempt to connect automatically
       connect({ connector: injected() });
     }
   }, [isConnected, isFrameReady, connect]);
 
-
-  // Contract interactions
   const { writeContract, data: writeData, error: writeError, isPending: _isWritePending, reset: resetWrite } = useWriteContract();
-  
-  // Signature for vault unlocking
   const { signMessage, data: signature, error: signError, isPending: isSignPending } = useSignMessage();
 
-  // Lock vault when wallet disconnects
   useEffect(() => {
     if (!isConnected) {
       setVaultSignature(null);
@@ -124,53 +106,33 @@ export default function Home() {
     }
   }, [isConnected]);
 
-  // Handle signature response
   useEffect(() => {
     if (signature) {
-      console.log("✅ Signature received:", signature);
-      
-      // Validate signature
       if (!isValidSignature(signature)) {
         setError("Invalid signature received");
         setIsUnlocking(false);
         return;
       }
 
-      // Store signature and unlock vault
       setVaultSignature(signature);
       setIsVaultUnlocked(true);
       setIsUnlocking(false);
-      
-      console.log("✅ Vault unlocked successfully");
     }
   }, [signature]);
 
-  // Handle signature errors
   useEffect(() => {
     if (signError) {
-      console.error("❌ Signature error:", signError);
       setError(`Failed to unlock vault: ${signError.message}`);
       setIsUnlocking(false);
     }
   }, [signError]);
   
-  // Log write errors
-  useEffect(() => {
-    if (writeError) {
-      console.error("Write contract error:", writeError);
-    }
-  }, [writeError]);
-  
-  // When writeData changes (tx hash is available), set it as pending
   useEffect(() => {
     if (writeData && !pendingTxHash) {
-      console.log("💎 Transaction hash received:", writeData);
-      console.log("View on BaseScan:", `https://base-sepolia.blockscout.com/tx/${writeData}`);
       setPendingTxHash(writeData);
     }
   }, [writeData, pendingTxHash]);
   
-  // Wait for transaction confirmation
   const { isSuccess: isTxConfirmed, isLoading: isTxPending, data: _txReceipt } = useWaitForTransactionReceipt({
     hash: pendingTxHash,
     query: {
@@ -178,70 +140,35 @@ export default function Home() {
     },
   });
   
-  // Log transaction receipt status
-  useEffect(() => {
-    if (pendingTxHash) {
-      console.log("⏳ Waiting for transaction confirmation...", {
-        hash: pendingTxHash,
-        isPending: isTxPending,
-        isConfirmed: isTxConfirmed,
-      });
-    }
-  }, [pendingTxHash, isTxPending, isTxConfirmed]);
-  
   const { data: userData, refetch: refetchUserData, error: readError, isLoading: isReadLoading } = useReadContract({
     address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
     abi: AUTHENTICATOR_ABI,
     functionName: "getUserData",
-    account: address, // CRITICAL: Pass the account to set msg.sender
+    account: address,
     args: [],
     query: {
       enabled: isConnected && !!address,
       refetchInterval: false,
-      staleTime: 0, // Always consider data stale
-      gcTime: 0, // Don't cache at all
+      staleTime: 0,
+      gcTime: 0,
     },
   });
   
-  // Extract bundle CID from userData
   const userBundleCID = userData?.exists ? userData.ipfsCID : null;
   
-  // Log read contract state
-  useEffect(() => {
-    console.log("=".repeat(60));
-    console.log("📖 READ CONTRACT STATE");
-    console.log("=".repeat(60));
-    console.log("Connected Wallet Address:", address);
-    console.log("Contract Address:", AUTHENTICATOR_CONTRACT_ADDRESS);
-    console.log("User Data:", userData);
-    console.log("User Bundle CID:", userBundleCID);
-    console.log("Is Connected:", isConnected);
-    console.log("Read Error:", readError);
-    console.log("Is Loading:", isReadLoading);
-    console.log("=".repeat(60));
-  }, [userData, userBundleCID, readError, isReadLoading, address, isConnected]);
-
-  // Load and decrypt accounts from IPFS bundle
   const loadAccounts = useCallback(async () => {
     if (!userBundleCID || !address || !vaultSignature) {
-      console.log("No bundle CID, address, or vault signature available");
       setAccounts([]);
       return;
     }
 
     try {
-      console.log("📦 Loading user bundle from IPFS:", userBundleCID);
-      
-      // Retrieve and decrypt user bundle from IPFS (bundle is now fully encrypted)
       const bundle: UserTOTPBundle = await retrieveBundleFromIPFS(userBundleCID, vaultSignature);
-      
-      console.log("Loading accounts, count:", bundle.accounts.length);
       const decrypted: DecryptedAccount[] = [];
       
       for (let i = 0; i < bundle.accounts.length; i++) {
         const account = bundle.accounts[i];
         try {
-          // Decrypt the secret using AES-256-GCM with signature
           const decryptedSecret = await decryptSecretGCM(
             account.encryptedSecret,
             account.iv,
@@ -259,17 +186,12 @@ export default function Home() {
             index: i,
             logoCID: account.logoCID,
           });
-          
-          console.log(`✅ Successfully decrypted account: ${account.accountName}`);
         } catch (err) {
-          console.error(`Failed to decrypt account ${account.accountName}:`, err);
         }
       }
       
-      console.log("Loaded and decrypted accounts:", decrypted.length);
       setAccounts(decrypted);
     } catch (err) {
-      console.error("Error loading accounts:", err);
       setAccounts([]);
     }
   }, [userBundleCID, address, vaultSignature]);
@@ -278,29 +200,13 @@ export default function Home() {
     loadAccounts();
   }, [loadAccounts]);
 
-  // Refetch when transaction is confirmed
   useEffect(() => {
     if (isTxConfirmed && pendingTxHash) {
-      console.log("=".repeat(60));
-      console.log("✅ TRANSACTION CONFIRMED!");
-      console.log("=".repeat(60));
-      console.log("Transaction Hash:", pendingTxHash);
-      console.log("Contract Address:", AUTHENTICATOR_CONTRACT_ADDRESS);
-      console.log("Connected Address:", address);
-      console.log("Waiting 2 seconds before refetching...");
-      console.log("=".repeat(60));
-      
-      // Add a small delay to ensure blockchain state is updated
       setTimeout(async () => {
-        console.log("🔄 Refetching data from contract...");
-        
-        // Trigger the hook refetch
         await refetchUserData();
-        console.log("📊 User data refetched");
-        console.log("=".repeat(60));
         
         setPendingTxHash(undefined);
-        resetWrite(); // Clear the write state for next transaction
+        resetWrite();
         setShowAddModal(false);
         setNewAccountName("");
         setNewSecret("");
@@ -308,18 +214,15 @@ export default function Home() {
         setLogoPreview(null);
         setIsLoading(false);
         setUploadingToIPFS(false);
-      }, 2000); // Increased delay to 2 seconds
+      }, 2000);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTxConfirmed, pendingTxHash, address]);
+  }, [isTxConfirmed, pendingTxHash, address, refetchUserData, resetWrite]);
 
-  // Update TOTP codes every second
   useEffect(() => {
     const interval = setInterval(() => {
       const remaining = getTimeRemaining();
       setTimeRemaining(remaining);
 
-      // Regenerate codes when timer resets
       if (remaining === 30 && accounts.length > 0) {
         setAccounts((prev) =>
           prev.map((account) => ({
@@ -333,27 +236,19 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [accounts.length]);
 
-  // Helper function to ensure user is on the correct network
   const ensureCorrectNetwork = async (): Promise<boolean> => {
     if (!isConnected || !address) {
       setError("Please connect your wallet first");
       return false;
     }
 
-    // Check if user is on the correct network
     if (chainId !== REQUIRED_CHAIN_ID) {
       try {
-        console.log(`🔄 Switching network from chain ${chainId} to ${REQUIRED_CHAIN_ID} (${REQUIRED_CHAIN.name})...`);
         setError(`Please switch to ${REQUIRED_CHAIN.name} to continue`);
-        
-        // Request network switch
         await switchChain({ chainId: REQUIRED_CHAIN_ID });
-        
-        console.log(`✅ Successfully switched to ${REQUIRED_CHAIN.name}`);
         setError("");
         return true;
       } catch (err) {
-        console.error("❌ Failed to switch network:", err);
         if (err instanceof Error) {
           setError(`Failed to switch network: ${err.message}`);
         } else {
@@ -415,7 +310,6 @@ export default function Home() {
       return;
     }
 
-    // Ensure user is on the correct network before proceeding
     const isOnCorrectNetwork = await ensureCorrectNetwork();
     if (!isOnCorrectNetwork) {
       return;
@@ -426,43 +320,24 @@ export default function Home() {
       setUploadingToIPFS(true);
       setError("");
       
-      console.log("=".repeat(60));
-      console.log("✍️  ADDING NEW ACCOUNT TO BUNDLE");
-      console.log("=".repeat(60));
-      console.log("Wallet Address:", address);
-      console.log("Account Name:", newAccountName.trim());
-      console.log("Contract Address:", AUTHENTICATOR_CONTRACT_ADDRESS);
-      console.log("=".repeat(60));
-      
-      // Step 1: Fetch existing bundle or create new one
       let bundle: UserTOTPBundle;
       if (userBundleCID && userBundleCID !== "") {
-        console.log("📦 Fetching existing bundle:", userBundleCID);
         bundle = await retrieveBundleFromIPFS(userBundleCID, vaultSignature!);
       } else {
-        console.log("🆕 Creating new bundle");
         bundle = createEmptyBundle(address);
       }
       
-      // Step 2: Upload and compress logo if provided
       let logoCID: string | undefined;
       if (logoFile) {
-        console.log("🖼️  Processing logo...");
         const compressedLogo = await compressImage(logoFile, {
           maxSizeMB: 0.5,
           maxWidthOrHeight: 512,
         });
-        console.log("📤 Uploading logo to IPFS...");
         logoCID = await uploadImageToIPFS(compressedLogo, newAccountName.trim());
-        console.log("✅ Logo uploaded to IPFS:", logoCID);
       }
 
-      // Step 3: Encrypt the secret with AES-256-GCM using signature
-      console.log("🔐 Encrypting secret with AES-256-GCM using signature...");
       const { encrypted, iv, salt } = await encryptSecretGCM(cleanedSecret, vaultSignature!);
-      console.log("✅ Secret encrypted");
 
-      // Step 4: Create new account object
       const newAccount: TOTPAccount = {
         id: uuidv4(),
         accountName: newAccountName.trim(),
@@ -476,30 +351,20 @@ export default function Home() {
         logoCID,
       };
 
-      // Step 5: Add to bundle
       bundle.accounts.push(newAccount);
       bundle.lastUpdated = Date.now();
 
-      // Step 6: Upload updated bundle to IPFS (encrypted, with cleanup of old bundle)
-      console.log("📤 Uploading encrypted bundle to IPFS...");
       const newBundleCID = await uploadBundleToIPFS(bundle, vaultSignature!, userBundleCID);
-      console.log("✅ Encrypted bundle uploaded:", newBundleCID);
       setUploadingToIPFS(false);
 
-      // Step 7: Update contract with new CID
-      console.log("⛓️  Storing bundle CID on blockchain...");
       await writeContract({
         address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
         abi: AUTHENTICATOR_ABI,
         functionName: "setUserData",
         args: [newBundleCID],
       });
-
-      console.log("✅ Transaction submitted! Waiting for confirmation...");
-      console.log("=".repeat(60));
       
     } catch (err: unknown) {
-      console.error("❌ Error adding account:", err);
       if (err instanceof Error) {
         setError(`Failed to add account: ${err.message}`);
       } else {
@@ -513,7 +378,6 @@ export default function Home() {
   const handleDeleteAccount = async (index: number) => {
     if (!address) return;
 
-    // Ensure user is on the correct network before proceeding
     const isOnCorrectNetwork = await ensureCorrectNetwork();
     if (!isOnCorrectNetwork) {
       return;
@@ -522,34 +386,24 @@ export default function Home() {
     try {
       setIsLoading(true);
       
-      // Get account ID from index
       const accountToDelete = accounts.find(acc => acc.index === index);
       if (!accountToDelete) {
-        console.error("Account not found at index:", index);
         setIsLoading(false);
         return;
       }
       
-      // Fetch existing bundle
       if (!userBundleCID || userBundleCID === "") {
-        console.error("No bundle found");
         setIsLoading(false);
         return;
       }
       
-      console.log("📦 Fetching bundle to remove account...");
       const bundle = await retrieveBundleFromIPFS(userBundleCID, vaultSignature!);
       
-      // Remove account from bundle
       bundle.accounts = bundle.accounts.filter(acc => acc.id !== accountToDelete.id);
       bundle.lastUpdated = Date.now();
       
-      // Upload updated encrypted bundle (with cleanup of old bundle)
-      console.log("📤 Uploading updated encrypted bundle...");
       const newBundleCID = await uploadBundleToIPFS(bundle, vaultSignature!, userBundleCID);
-      console.log("✅ Encrypted bundle uploaded:", newBundleCID);
       
-      // Update contract
       await writeContract({
         address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
         abi: AUTHENTICATOR_ABI,
@@ -557,9 +411,7 @@ export default function Home() {
         args: [newBundleCID],
       });
 
-      // The transaction hash will be set by the useEffect watching writeData
     } catch (err) {
-      console.error("Error deleting account:", err);
       setIsLoading(false);
     }
   };
@@ -595,14 +447,9 @@ export default function Home() {
       setIsUnlocking(true);
       setError("");
 
-      console.log("🔐 Requesting vault signature...");
-      console.log("   Message:", VAULT_UNLOCK_MESSAGE);
-      
-      // Request signature using wagmi hook
       signMessage({ message: VAULT_UNLOCK_MESSAGE });
       
     } catch (err) {
-      console.error("❌ Failed to unlock vault:", err);
       if (err instanceof Error) {
         setError(`Failed to unlock vault: ${err.message}`);
       } else {
@@ -616,19 +463,15 @@ export default function Home() {
     setVaultSignature(null);
     setIsVaultUnlocked(false);
     setAccounts([]);
-    console.log("🔒 Vault locked");
   };
 
   const handleQRScanSuccess = useCallback((result: QRScanResult) => {
     if (result.success) {
-      // Check if it's a migration (batch import)
       if (result.migrationData && result.migrationData.accounts) {
-        console.log(`✅ Migration QR scanned with ${result.migrationData.accounts.length} accounts`);
         setMigrationAccounts(result.migrationData.accounts);
         setShowQRScanner(false);
         setShowMigrationImport(true);
       } else if (result.data) {
-        // Single account
         setNewSecret(result.data.secret);
         if (result.data.account && result.data.account !== 'Scanned Account') {
           setNewAccountName(result.data.account);
@@ -636,7 +479,6 @@ export default function Home() {
           setNewAccountName(result.data.issuer);
         }
         setShowQRScanner(false);
-        console.log("✅ QR code scanned successfully:", result.data);
       }
     }
   }, []);
@@ -647,7 +489,6 @@ export default function Home() {
       return;
     }
 
-    // Ensure user is on the correct network before proceeding
     const isOnCorrectNetwork = await ensureCorrectNetwork();
     if (!isOnCorrectNetwork) {
       return;
@@ -658,59 +499,36 @@ export default function Home() {
       setUploadingToIPFS(true);
       setError("");
 
-      console.log("=".repeat(60));
-      console.log("📦 IMPORTING MULTIPLE ACCOUNTS FROM GOOGLE AUTHENTICATOR");
-      console.log("=".repeat(60));
-      console.log("Wallet Address:", address);
-      console.log("Number of Accounts:", selectedAccounts.length);
-      console.log("Contract Address:", AUTHENTICATOR_CONTRACT_ADDRESS);
-      console.log("=".repeat(60));
-
-      // Step 1: Fetch existing bundle or create new one
       let bundle: UserTOTPBundle;
       if (userBundleCID && userBundleCID !== "") {
-        console.log("📦 Fetching existing bundle:", userBundleCID);
         bundle = await retrieveBundleFromIPFS(userBundleCID, vaultSignature);
       } else {
-        console.log("🆕 Creating new bundle");
         bundle = createEmptyBundle(address);
       }
 
-      // Step 2: Process each selected account
       for (const account of selectedAccounts) {
-        console.log(`🔐 Processing account: ${account.accountName} (${account.issuer})`);
-
-        // Encrypt the secret with AES-256-GCM using signature
         const { encrypted, iv, salt } = await encryptSecretGCM(account.secret, vaultSignature);
 
-        // Create new account object
         const newAccount: TOTPAccount = {
           id: uuidv4(),
           accountName: account.accountName,
           encryptedSecret: encrypted,
           algorithm: account.algorithm,
-          period: 30, // Standard TOTP period
+          period: 30,
           digits: account.digits,
           timestamp: Date.now(),
           iv,
           salt,
-          // Note: We don't transfer logos from Google Authenticator
         };
 
         bundle.accounts.push(newAccount);
-        console.log(`✅ Added account: ${account.accountName}`);
       }
 
       bundle.lastUpdated = Date.now();
 
-      // Step 3: Upload updated bundle to IPFS (encrypted, with cleanup of old bundle)
-      console.log("📤 Uploading encrypted bundle to IPFS...");
       const newBundleCID = await uploadBundleToIPFS(bundle, vaultSignature, userBundleCID);
-      console.log("✅ Encrypted bundle uploaded:", newBundleCID);
       setUploadingToIPFS(false);
 
-      // Step 4: Update contract with new CID
-      console.log("⛓️  Storing bundle CID on blockchain...");
       await writeContract({
         address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
         abi: AUTHENTICATOR_ABI,
@@ -718,14 +536,9 @@ export default function Home() {
         args: [newBundleCID],
       });
 
-      console.log("✅ Transaction submitted! Waiting for confirmation...");
-      console.log("=".repeat(60));
-
-      // Close the migration import modal
       setShowMigrationImport(false);
       setMigrationAccounts([]);
     } catch (err: unknown) {
-      console.error("❌ Error importing accounts:", err);
       if (err instanceof Error) {
         setError(`Failed to import accounts: ${err.message}`);
       } else {
@@ -780,7 +593,7 @@ export default function Home() {
 
       {isTxPending && (
         <div className={styles.toast} role="status" aria-live="polite">
-          Pending transaction{/* non-breaking visual spacing */}
+          Pending transaction
         </div>
       )}
 

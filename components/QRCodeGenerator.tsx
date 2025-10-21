@@ -72,7 +72,6 @@ export default function QRCodeGenerator({ onClose, isOpen }: QRCodeGeneratorProp
         ]);
         alert('QR code copied to clipboard!');
       } catch (err) {
-        console.error('Failed to copy QR code:', err);
         alert('Failed to copy QR code to clipboard');
       }
     }

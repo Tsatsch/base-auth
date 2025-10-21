@@ -77,9 +77,7 @@ export default function ExportModal({ accounts, onClose, isOpen }: ExportModalPr
       }
 
       setQrCodes(qrCodeDataURLs);
-      console.log(`✅ Generated ${qrCodeDataURLs.length} QR codes for export`);
     } catch (err) {
-      console.error('Error generating QR codes:', err);
       setError(err instanceof Error ? err.message : 'Failed to generate QR codes');
     } finally {
       setIsGenerating(false);

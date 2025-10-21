@@ -7,21 +7,17 @@ import { injected } from "wagmi/connectors";
 import { OnchainKitProvider } from "@coinbase/onchainkit";
 import "@coinbase/onchainkit/styles.css";
 
-// Determine which network to use based on environment variable
-// Options: "testnet" (Base Sepolia) or "mainnet" (Base)
 const NETWORK = process.env.NEXT_PUBLIC_NETWORK || "testnet";
 
-// Map network to chain and RPC URL (for OnchainKit)
 const networkConfig = NETWORK === "mainnet" 
   ? { chain: base, rpcUrl: "https://mainnet.base.org" }
   : { chain: baseSepolia, rpcUrl: "https://sepolia.base.org" };
 
-// Create wagmi config with both chains enabled to allow network switching
 const wagmiConfig = createConfig({
   chains: [base, baseSepolia],
   connectors: [
     injected({
-      target: "metaMask", // This will use the injected provider from Base app
+      target: "metaMask",
     }),
   ],
   transports: {
@@ -31,7 +27,6 @@ const wagmiConfig = createConfig({
   ssr: true,
 });
 
-// Create a client for React Query
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

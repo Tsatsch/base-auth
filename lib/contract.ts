@@ -1,4 +1,3 @@
-// Contract ABI for TwoFactorAuthenticator (Bundle-based version)
 export const AUTHENTICATOR_ABI = [
   {
     "type": "function",
@@ -171,21 +170,11 @@ export const AUTHENTICATOR_ABI = [
   }
 ] as const;
 
-
 export const AUTHENTICATOR_CONTRACT_ADDRESS = 
   process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0xA5D0BB0D13D23c09b1aB7075708296C3FA290e08";
 
-// New interface for bundle-based contract
 export interface UserData {
   ipfsCID: string;
   timestamp: bigint;
   exists: boolean;
 }
-
-// Legacy interface - kept for backward compatibility
-export interface Account {
-  accountName: string;
-  ipfsCID: string;
-  timestamp: bigint;
-}
-
