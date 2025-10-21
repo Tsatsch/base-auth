@@ -2,9 +2,8 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnect, useWaitForTransactionReceipt, useSignMessage, useSwitchChain } from "wagmi";
+import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnect, useWaitForTransactionReceipt, useSignMessage } from "wagmi";
 import { injected } from "wagmi/connectors";
-import { base, baseSepolia } from "wagmi/chains";
 import { v4 as uuidv4 } from "uuid";
 import styles from "./page.module.css";
 import { encryptSecretGCM, decryptSecretGCM, validateSecret, cleanSecret } from "../lib/crypto";
@@ -17,8 +16,9 @@ import QRScanner from "../components/QRScanner";
 import { QRScanResult } from "../lib/qrScanner";
 import QRCodeGenerator from "../components/QRCodeGenerator";
 import MigrationImport from "../components/MigrationImport";
+import ExportModal from "../components/ExportModal";
 import { ParsedMigrationAccount } from "../lib/googleAuthMigration";
-import { resolveBaseName, formatAddress, formatBaseName } from "../lib/basename";
+import { resolveBaseName, formatBaseName } from "../lib/basename";
 
 interface DecryptedAccount {
   id: string;
@@ -29,29 +29,20 @@ interface DecryptedAccount {
   logoCID?: string;
 }
 
-// Get current network configuration
-const getCurrentNetworkConfig = () => {
-  const network = process.env.NEXT_PUBLIC_NETWORK || "testnet";
-  return network === "mainnet" 
-    ? { chain: base, name: "Base Mainnet", chainId: base.id }
-    : { chain: baseSepolia, name: "Base Sepolia", chainId: baseSepolia.id };
-};
 
 export default function Home() {
   const { isFrameReady, setFrameReady } = useMiniKit();
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
-  const { switchChain } = useSwitchChain();
   
-  // Get current network configuration
-  const networkConfig = getCurrentNetworkConfig();
   const [accounts, setAccounts] = useState<DecryptedAccount[]>([]);
   const [timeRemaining, setTimeRemaining] = useState(30);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [showQRGenerator, setShowQRGenerator] = useState(false);
   const [showMigrationImport, setShowMigrationImport] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [migrationAccounts, setMigrationAccounts] = useState<ParsedMigrationAccount[]>([]);
   const [newAccountName, setNewAccountName] = useState("");
   const [newSecret, setNewSecret] = useState("");
@@ -62,7 +53,6 @@ export default function Home() {
   const [uploadingToIPFS, setUploadingToIPFS] = useState(false);
   const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | undefined>();
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-  const [hasAttemptedNetworkSwitch, setHasAttemptedNetworkSwitch] = useState(false);
   
   // Vault unlock state
   const [vaultSignature, setVaultSignature] = useState<string | null>(null);
@@ -103,22 +93,6 @@ export default function Home() {
     resolveWalletBaseName();
   }, [address, isConnected]);
 
-  // Ensure wallet is on the correct network (Base Sepolia or Base Mainnet)
-  const ensureCorrectNetwork = useCallback(async () => {
-    if (!isConnected || !switchChain) {
-      throw new Error("Wallet not connected or switch chain not available");
-    }
-
-    try {
-      console.log(`🔄 Attempting to switch to ${networkConfig.name} network (Chain ID: ${networkConfig.chainId})`);
-      await switchChain({ chainId: networkConfig.chainId });
-      console.log(`✅ Successfully switched to ${networkConfig.name} network`);
-      return true;
-    } catch (error) {
-      console.warn(`⚠️ Failed to switch to ${networkConfig.name}:`, error);
-      throw new Error(`Failed to switch to ${networkConfig.name} network. Please switch manually in your wallet.`);
-    }
-  }, [isConnected, switchChain, networkConfig]);
 
   // Auto-connect to injected provider on mount
   useEffect(() => {
@@ -128,22 +102,6 @@ export default function Home() {
     }
   }, [isConnected, isFrameReady, connect]);
 
-  // Ensure correct network after connection (separate effect to prevent loops)
-  useEffect(() => {
-    if (isConnected && isFrameReady && !hasAttemptedNetworkSwitch) {
-      // Small delay to ensure wallet is fully connected
-      const timer = setTimeout(async () => {
-        try {
-          await ensureCorrectNetwork();
-          setHasAttemptedNetworkSwitch(true);
-        } catch (error) {
-          console.warn("Auto network switch failed:", error);
-        }
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isConnected, isFrameReady, hasAttemptedNetworkSwitch, ensureCorrectNetwork]);
 
   // Contract interactions
   const { writeContract, data: writeData, error: writeError, isPending: _isWritePending, reset: resetWrite } = useWriteContract();
@@ -157,7 +115,6 @@ export default function Home() {
       setVaultSignature(null);
       setIsVaultUnlocked(false);
       setAccounts([]);
-      setHasAttemptedNetworkSwitch(false); // Reset network switch attempt
     }
   }, [isConnected]);
 
@@ -402,17 +359,6 @@ export default function Home() {
       return;
     }
 
-    // Ensure we're on the correct network before proceeding with transaction
-    console.log(`🔐 Preparing to add account - ensuring wallet is on ${networkConfig.name}...`);
-    try {
-      await ensureCorrectNetwork();
-      console.log(`✅ Wallet is on correct network (${networkConfig.name}) - proceeding with transaction`);
-    } catch (error) {
-      const errorMessage = `❌ Network switch failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please switch to ${networkConfig.name} network in your wallet manually.`;
-      setError(errorMessage);
-      console.error(errorMessage);
-      return;
-    }
 
     if (!newAccountName.trim()) {
       setError("Please enter an account name");
@@ -523,17 +469,6 @@ export default function Home() {
   const handleDeleteAccount = async (index: number) => {
     if (!address) return;
 
-    // Ensure we're on the correct network before proceeding with transaction
-    console.log(`🗑️ Preparing to delete account - ensuring wallet is on ${networkConfig.name}...`);
-    try {
-      await ensureCorrectNetwork();
-      console.log(`✅ Wallet is on correct network (${networkConfig.name}) - proceeding with deletion`);
-    } catch (error) {
-      const errorMessage = `❌ Network switch failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please switch to ${networkConfig.name} network in your wallet manually.`;
-      setError(errorMessage);
-      console.error(errorMessage);
-      return;
-    }
 
     try {
       setIsLoading(true);
@@ -596,18 +531,6 @@ export default function Home() {
     connect({ connector: injected() });
   };
 
-  const handleSwitchToCorrectNetwork = async () => {
-    console.log(`🔄 Manual network switch requested - switching to ${networkConfig.name}...`);
-    try {
-      await ensureCorrectNetwork();
-      setError(""); // Clear any previous errors
-      console.log(`✅ Manual network switch successful`);
-    } catch (error) {
-      const errorMessage = `❌ Manual network switch failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      setError(errorMessage);
-      console.error(errorMessage);
-    }
-  };
 
   const handleDisconnect = () => {
     disconnect();
@@ -675,17 +598,6 @@ export default function Home() {
       return;
     }
 
-    // Ensure we're on the correct network before proceeding
-    console.log(`📦 Preparing to import ${selectedAccounts.length} accounts - ensuring wallet is on ${networkConfig.name}...`);
-    try {
-      await ensureCorrectNetwork();
-      console.log(`✅ Wallet is on correct network (${networkConfig.name}) - proceeding with import`);
-    } catch (error) {
-      const errorMessage = `❌ Network switch failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please switch to ${networkConfig.name} network in your wallet manually.`;
-      setError(errorMessage);
-      console.error(errorMessage);
-      return;
-    }
 
     try {
       setIsLoading(true);
@@ -782,37 +694,28 @@ export default function Home() {
         </div>
         <div className={styles.headerActions}>
           {isConnected && address ? (
-            <>
-              <button 
-                className={styles.networkButton}
-                onClick={handleSwitchToCorrectNetwork}
-                title={`Switch to ${networkConfig.name}`}
-              >
-                🔄 {networkConfig.name}
-              </button>
-              <div 
-                className={styles.walletInfo}
-                onClick={handleDisconnect}
-                style={{ cursor: 'pointer' }}
-                title="Click to disconnect"
-              >
-                <span>🔗</span>
-                <span className={styles.walletAddress}>
-                  {isResolvingBaseName ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <span className={styles.spinner} aria-hidden />
-                      Resolving...
-                    </span>
-                  ) : baseName ? (
-                    <span title={`${formatBaseName(baseName)} (${formatAddress(address)})`} style={{ color: '#0000ff' }}>
-                      {formatBaseName(baseName)}
-                    </span>
-                  ) : (
-                    formatAddress(address)
-                  )}
-                </span>
-              </div>
-            </>
+            <div 
+              className={styles.walletInfo}
+              onClick={handleDisconnect}
+              style={{ cursor: 'pointer' }}
+              title="Click to disconnect"
+            >
+              <span>🔗</span>
+              <span className={styles.walletAddress}>
+                {isResolvingBaseName ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <span className={styles.spinner} aria-hidden />
+                    Resolving...
+                  </span>
+                ) : baseName ? (
+                  <span title={`${formatBaseName(baseName)} (${formatAddress(address)})`} style={{ color: '#0000ff' }}>
+                    {formatBaseName(baseName)}
+                  </span>
+                ) : (
+                  formatAddress(address)
+                )}
+              </span>
+            </div>
           ) : (
             <button className={styles.connectButton} onClick={handleConnect}>
               Connect Wallet
@@ -964,6 +867,17 @@ export default function Home() {
         </button>
       )}
 
+      {isConnected && isVaultUnlocked && accounts.length > 0 && (
+        <button
+          className={styles.exportButton}
+          onClick={() => setShowExportModal(true)}
+          type="button"
+          title="Export accounts"
+        >
+          📤
+        </button>
+      )}
+
       {showAddModal && (
         <div className={styles.modal} onClick={() => setShowAddModal(false)}>
           <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
@@ -1102,6 +1016,15 @@ export default function Home() {
         }}
         onImport={handleMigrationImport}
         isLoading={isLoading}
+      />
+
+      <ExportModal
+        isOpen={showExportModal}
+        accounts={accounts.map(acc => ({
+          accountName: acc.accountName,
+          secret: acc.secret,
+        }))}
+        onClose={() => setShowExportModal(false)}
       />
     </div>
   );

@@ -274,3 +274,129 @@ export function isMigrationURI(uri: string): boolean {
   return uri.startsWith('otpauth-migration://offline');
 }
 
+/**
+ * Convert base32 string to bytes (for exporting)
+ */
+function base32ToBytes(base32: string): Uint8Array {
+  const base32Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  
+  // Remove padding
+  base32 = base32.replace(/=+$/, '').toUpperCase();
+  
+  let bits = 0;
+  let value = 0;
+  const output: number[] = [];
+
+  for (let i = 0; i < base32.length; i++) {
+    const idx = base32Chars.indexOf(base32[i]);
+    if (idx === -1) {
+      throw new Error(`Invalid base32 character: ${base32[i]}`);
+    }
+    
+    value = (value << 5) | idx;
+    bits += 5;
+
+    if (bits >= 8) {
+      output.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+
+  return new Uint8Array(output);
+}
+
+/**
+ * Convert algorithm string to enum value
+ */
+function stringToAlgorithm(algorithm: string): number {
+  switch (algorithm.toUpperCase()) {
+    case 'SHA1': return 1;
+    case 'SHA256': return 2;
+    case 'SHA512': return 3;
+    case 'MD5': return 4;
+    default: return 1; // Default to SHA1
+  }
+}
+
+/**
+ * Convert digit count to enum value
+ */
+function numberToDigits(digits: number): number {
+  switch (digits) {
+    case 6: return 1;
+    case 8: return 2;
+    default: return 1; // Default to 6
+  }
+}
+
+/**
+ * Convert type string to enum value
+ */
+function stringToType(type: string): number {
+  switch (type.toUpperCase()) {
+    case 'HOTP': return 1;
+    case 'TOTP': return 2;
+    default: return 2; // Default to TOTP
+  }
+}
+
+/**
+ * Create a Google Authenticator migration URI from account(s)
+ * @param accounts Array of accounts to export
+ * @returns Migration URI string
+ */
+export function createMigrationURI(accounts: ParsedMigrationAccount[]): string {
+  try {
+    const root = getProtoRoot();
+    const MigrationPayload = root.lookupType('MigrationPayload');
+
+    // Convert accounts to OTP parameters
+    const otpParameters = accounts.map(account => {
+      // Convert base32 secret to bytes
+      const secretBytes = base32ToBytes(account.secret);
+      
+      // Build the full name (issuer:account)
+      const fullName = account.issuer && account.issuer !== 'Unknown' 
+        ? `${account.issuer}:${account.accountName}`
+        : account.accountName;
+
+      return {
+        secret: secretBytes,
+        name: fullName,
+        issuer: account.issuer && account.issuer !== 'Unknown' ? account.issuer : '',
+        algorithm: stringToAlgorithm(account.algorithm),
+        digits: numberToDigits(account.digits),
+        type: stringToType(account.type),
+        counter: account.counter || 0,
+      };
+    });
+
+    // Create payload
+    const payload = {
+      otpParameters,
+      version: 1,
+      batchSize: accounts.length,
+      batchIndex: 0,
+      batchId: Math.floor(Math.random() * 1000000),
+    };
+
+    console.log('📦 Creating migration payload:', payload);
+
+    // Encode to Protocol Buffers
+    const message = MigrationPayload.create(payload);
+    const buffer = MigrationPayload.encode(message).finish();
+
+    // Encode: Buffer -> Base64 -> URL encode
+    const base64Encoded = Buffer.from(buffer).toString('base64');
+    const urlEncoded = encodeURIComponent(base64Encoded);
+
+    // Create migration URI
+    const uri = `otpauth-migration://offline?data=${urlEncoded}`;
+    
+    console.log('✅ Created migration URI');
+    return uri;
+  } catch (error) {
+    console.error('Error creating migration URI:', error);
+    throw new Error(`Failed to create migration URI: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}

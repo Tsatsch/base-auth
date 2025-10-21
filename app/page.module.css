@@ -122,25 +122,6 @@
   border-color: var(--base-blue);
 }
 
-.networkButton {
-  padding: 0.5rem 0.75rem;
-  background: var(--base-blue);
-  color: var(--base-white);
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.875rem;
-  font-weight: 500;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.networkButton:hover {
-  background: var(--blue-7);
-  transform: translateY(-1px);
-}
 
 .emptyState {
   flex: 1;
@@ -390,6 +371,32 @@
   transform: scale(1.05);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
   background: var(--gray-7);
+}
+
+.exportButton {
+  position: fixed;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  right: 10rem;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: white;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 82, 255, 0.25);
+  transition: all 0.2s ease;
+  z-index: 999;
+}
+
+.exportButton:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(0, 82, 255, 0.35);
+  background: var(--blue-hover);
 }
 
 .modal {
