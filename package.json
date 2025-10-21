@@ -19,6 +19,7 @@
     "helia": "^6.0.2",
     "next": "15.3.4",
     "otpauth": "^9.4.1",
+    "permissionless": "^0.2.57",
     "pinata": "^2.5.1",
     "protobufjs": "^7.5.4",
     "qr-scanner": "^1.4.2",

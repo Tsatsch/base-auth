@@ -15,7 +15,6 @@ import { compressImage, isValidImageFile } from "../lib/imageCompression";
 import { VAULT_UNLOCK_MESSAGE, isValidSignature } from "../lib/signature";
 import QRScanner from "../components/QRScanner";
 import { QRScanResult } from "../lib/qrScanner";
-import QRCodeGenerator from "../components/QRCodeGenerator";
 import MigrationImport from "../components/MigrationImport";
 import ExportModal from "../components/ExportModal";
 import { ParsedMigrationAccount } from "../lib/googleAuthMigration";
@@ -48,7 +47,6 @@ export default function Home() {
   const [timeRemaining, setTimeRemaining] = useState(30);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
-  const [showQRGenerator, setShowQRGenerator] = useState(false);
   const [showMigrationImport, setShowMigrationImport] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [migrationAccounts, setMigrationAccounts] = useState<ParsedMigrationAccount[]>([]);
@@ -777,21 +775,12 @@ export default function Home() {
               Connect Wallet
             </button>
           )}
-          
-          {/* Development test button - remove in production */}
-          <button 
-            className={styles.testButton}
-            onClick={() => setShowQRGenerator(true)}
-            title="Generate test QR codes"
-          >
-            🧪
-          </button>
         </div>
       </div>
 
       {isTxPending && (
         <div className={styles.toast} role="status" aria-live="polite">
-          Pending transaction  a{/* non-breaking visual spacing */}
+          Pending transaction{/* non-breaking visual spacing */}
         </div>
       )}
 
@@ -1061,11 +1050,6 @@ export default function Home() {
         isOpen={showQRScanner}
         onClose={() => setShowQRScanner(false)}
         onScanSuccess={handleQRScanSuccess}
-      />
-
-      <QRCodeGenerator
-        isOpen={showQRGenerator}
-        onClose={() => setShowQRGenerator(false)}
       />
 
       <MigrationImport
