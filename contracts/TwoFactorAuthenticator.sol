@@ -16,7 +16,7 @@ contract TwoFactorAuthenticator {
     mapping(address => UserData) private userData;
 
     // Events
-    event UserDataUpdated(address indexed user, string ipfsCID, uint256 timestamp);
+    event UserDataUpdated(address indexed user, uint256 timestamp);
     event UserDataRemoved(address indexed user, uint256 timestamp);
 
     /**
@@ -32,7 +32,7 @@ contract TwoFactorAuthenticator {
             exists: true
         });
 
-        emit UserDataUpdated(msg.sender, _ipfsCID, block.timestamp);
+        emit UserDataUpdated(msg.sender, block.timestamp);
     }
 
     /**
@@ -77,9 +77,9 @@ contract TwoFactorAuthenticator {
     }
 
     /**
-     * @dev Get user data for specific address (admin/debugging)
+     * @dev Get user data for specific address (internal use only)
      */
-    function getUserDataByAddress(address _user) public view returns (UserData memory) {
+    function getUserDataByAddress(address _user) internal view returns (UserData memory) {
         return userData[_user];
     }
 }
