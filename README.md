@@ -3,7 +3,7 @@
 <div align="center">
   <h3>Secure two-factor authentication with IPFS and blockchain</h3>
   <p>Store encrypted 2FA secrets on IPFS with immutable blockchain references</p>
-</div>
+</div> 
 
 ## 🔐 Overview
 
