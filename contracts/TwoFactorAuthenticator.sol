@@ -3,10 +3,7 @@ pragma solidity ^0.8.20;
 
 /**
  * @title TwoFactorAuthenticator
- * @dev A smart contract to store IPFS CIDs pointing to encrypted 2FA bundles
- * @notice This contract stores one IPFS CID per user, pointing to a bundle containing all their 2FA accounts.
- * All encryption is done client-side before IPFS upload.
- * Sensitive data never touches the blockchain directly, only immutable content references.
+ * @dev Stores IPFS CIDs for encrypted 2FA bundles. All encryption is client-side.
  */
 contract TwoFactorAuthenticator {
     struct UserData {
@@ -23,8 +20,7 @@ contract TwoFactorAuthenticator {
     event UserDataRemoved(address indexed user, uint256 timestamp);
 
     /**
-     * @dev Set or update the user's IPFS bundle CID
-     * @param _ipfsCID The IPFS Content Identifier pointing to encrypted bundle containing all accounts
+     * @dev Set or update user's IPFS bundle CID
      */
     function setUserData(string memory _ipfsCID) public {
         require(bytes(_ipfsCID).length > 0, "IPFS CID cannot be empty");
@@ -40,8 +36,7 @@ contract TwoFactorAuthenticator {
     }
 
     /**
-     * @dev Retrieve the user's IPFS bundle CID
-     * @return The IPFS CID string
+     * @dev Get user's IPFS bundle CID
      */
     function getUserCID() public view returns (string memory) {
         require(userData[msg.sender].exists, "No data found for user");
@@ -49,8 +44,7 @@ contract TwoFactorAuthenticator {
     }
 
     /**
-     * @dev Get the user's data including timestamp
-     * @return UserData struct containing IPFS CID, timestamp, and exists flag
+     * @dev Get user's data including timestamp
      */
     function getUserData() public view returns (UserData memory) {
         return userData[msg.sender];
@@ -58,15 +52,13 @@ contract TwoFactorAuthenticator {
 
     /**
      * @dev Check if user has data stored
-     * @return True if user has data, false otherwise
      */
     function hasData() public view returns (bool) {
         return userData[msg.sender].exists;
     }
 
     /**
-     * @dev Get the timestamp of the last update
-     * @return The timestamp of the last update
+     * @dev Get timestamp of last update
      */
     function getLastUpdated() public view returns (uint256) {
         require(userData[msg.sender].exists, "No data found for user");
@@ -74,7 +66,7 @@ contract TwoFactorAuthenticator {
     }
 
     /**
-     * @dev Remove the user's data (marks as removed, doesn't actually delete from blockchain)
+     * @dev Remove user's data (marks as removed)
      */
     function removeUserData() public {
         require(userData[msg.sender].exists, "No data found for user");
@@ -85,9 +77,7 @@ contract TwoFactorAuthenticator {
     }
 
     /**
-     * @dev Get user data for a specific address (useful for admin/debugging)
-     * @param _user The user address to query
-     * @return UserData struct for the specified user
+     * @dev Get user data for specific address (admin/debugging)
      */
     function getUserDataByAddress(address _user) public view returns (UserData memory) {
         return userData[_user];
