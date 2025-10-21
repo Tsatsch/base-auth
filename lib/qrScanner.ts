@@ -48,9 +48,9 @@ export async function startQRScan(
     // Patch canvas context creation to add willReadFrequently attribute
     // This prevents the Canvas2D performance warning when using getImageData repeatedly
     const originalGetContext = HTMLCanvasElement.prototype.getContext;
-    const patchedGetContext = function(this: HTMLCanvasElement, contextType: string, contextAttributes?: any) {
+    const patchedGetContext = function(this: HTMLCanvasElement, contextType: string, contextAttributes?: CanvasRenderingContext2DSettings | WebGLContextAttributes) {
       if (contextType === '2d') {
-        const attrs = contextAttributes || {};
+        const attrs = (contextAttributes || {}) as CanvasRenderingContext2DSettings;
         attrs.willReadFrequently = true;
         return originalGetContext.call(this, contextType, attrs);
       }
@@ -58,7 +58,7 @@ export async function startQRScan(
     };
     
     // Temporarily patch the getContext method
-    HTMLCanvasElement.prototype.getContext = patchedGetContext as any;
+    HTMLCanvasElement.prototype.getContext = patchedGetContext as typeof HTMLCanvasElement.prototype.getContext;
 
     // Create QR scanner instance
     const qrScanner = new QrScanner(
@@ -122,7 +122,7 @@ export async function startQRScan(
       if (HTMLCanvasElement.prototype.getContext.name === 'patchedGetContext') {
         HTMLCanvasElement.prototype.getContext = originalGetContext;
       }
-    } catch (e) {
+    } catch {
       // Ignore restoration errors
     }
     

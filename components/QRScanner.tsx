@@ -73,7 +73,7 @@ export default function QRScanner({ onScanSuccess, onClose, isOpen }: QRScannerP
       }
       setIsScanning(false);
     };
-  }, [isOpen, cameraSupported]);
+  }, [isOpen, cameraSupported, onScanSuccess]);
 
   if (!isOpen) {
     return null;
