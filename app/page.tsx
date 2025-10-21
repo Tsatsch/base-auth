@@ -771,29 +771,33 @@ export default function Home() {
                 <label htmlFor="secret" className={styles.label}>
                   2FA Secret Key
                 </label>
-                <div className={styles.secretInputContainer}>
-                  <textarea
-                    id="secret"
-                    placeholder="Paste your 2FA secret key here (base32 encoded)"
-                    value={newSecret}
-                    onChange={(e) => setNewSecret(e.target.value)}
-                    className={styles.textarea}
-                    disabled={isLoading}
-                  />
-                  <button
-                    type="button"
-                    className={styles.qrButton}
-                    onClick={() => setShowQRScanner(true)}
-                    disabled={isLoading}
-                    title="Scan QR code"
-                  >
-                    📷
-                  </button>
-                </div>
+                <textarea
+                  id="secret"
+                  placeholder="Paste your 2FA secret key here (base32 encoded)"
+                  value={newSecret}
+                  onChange={(e) => setNewSecret(e.target.value)}
+                  className={styles.textarea}
+                  disabled={isLoading}
+                />
                 <p className={styles.hint}>
                   The secret is encrypted with AES-256-GCM and stored on IPFS.
                   Only the IPFS CID is stored on-chain.
                 </p>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label className={styles.label}>
+                  Import or Scan:
+                </label>
+                <button
+                  type="button"
+                  className={styles.scanButton}
+                  onClick={() => setShowQRScanner(true)}
+                  disabled={isLoading}
+                  title="Scan QR code"
+                >
+                  📷 Scan QR Code
+                </button>
               </div>
 
               <div className={styles.formGroup}>
