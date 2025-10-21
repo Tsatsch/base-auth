@@ -7,6 +7,7 @@
  */
 
 import { PinataSDK } from "pinata";
+import { encryptBundleGCM, decryptBundleGCM } from "./crypto";
 
 // Individual account within a user's bundle
 export interface TOTPAccount {
@@ -28,6 +29,14 @@ export interface UserTOTPBundle {
   userAddress: string;           // Wallet address
   lastUpdated: number;           // Last modification timestamp
   version: number;               // Bundle version (for future compatibility)
+}
+
+// Encrypted bundle wrapper - this is what actually gets stored on IPFS
+export interface EncryptedBundle {
+  encryptedData: string;         // Encrypted bundle JSON (base64)
+  iv: string;                    // Initialization vector for bundle encryption
+  salt: string;                  // Salt for bundle key derivation
+  version: number;               // Encryption version (for future compatibility)
 }
 
 // Legacy interface - kept for backward compatibility during migration
@@ -350,34 +359,56 @@ async function getFileIdFromCID(cid: string): Promise<string | null> {
 }
 
 /**
- * Upload a complete user TOTP bundle to IPFS
+ * Upload a complete user TOTP bundle to IPFS (encrypted)
  * Reference: https://docs.pinata.cloud/sdk/upload
  * 
+ * NOTE: The entire bundle is encrypted before uploading to IPFS for maximum privacy.
+ * Even with the IPFS CID, no one can see the data without the wallet signature.
+ * 
  * @param bundle The complete user TOTP bundle
+ * @param signature The user's wallet signature (for bundle encryption)
  * @param oldCID Optional: The CID of the old bundle to unpin after successful upload
  * @returns The IPFS CID (Content Identifier)
  */
-export async function uploadBundleToIPFS(bundle: UserTOTPBundle, oldCID?: string | null): Promise<string> {
+export async function uploadBundleToIPFS(
+  bundle: UserTOTPBundle, 
+  signature: string,
+  oldCID?: string | null
+): Promise<string> {
   try {
     const pinata = getPinataClient();
 
-    console.log('📤 Uploading bundle to IPFS via Pinata v3 API...');
+    console.log('🔐 Encrypting bundle before IPFS upload...');
     console.log('   User:', bundle.userAddress);
     console.log('   Accounts:', bundle.accounts.length);
     if (oldCID) {
       console.log('   Old CID to cleanup:', oldCID);
     }
 
-    // Convert bundle to JSON string and create a File object
-    const jsonString = JSON.stringify(bundle);
+    // Encrypt the entire bundle using wallet signature
+    const { encrypted, iv, salt } = await encryptBundleGCM(bundle, signature);
+    
+    // Create encrypted bundle wrapper
+    const encryptedBundle: EncryptedBundle = {
+      encryptedData: encrypted,
+      iv,
+      salt,
+      version: 2, // Version 2 = fully encrypted bundle
+    };
+
+    console.log('✅ Bundle encrypted successfully');
+    console.log('📤 Uploading encrypted bundle to IPFS via Pinata v3 API...');
+
+    // Convert encrypted bundle to JSON string and create a File object
+    const jsonString = JSON.stringify(encryptedBundle);
     const blob = new Blob([jsonString], { type: 'application/json' });
-    const file = new File([blob], `2FA-Bundle-${bundle.userAddress}-${Date.now()}.json`, {
+    const file = new File([blob], `2FA-Encrypted-Bundle-${bundle.userAddress}-${Date.now()}.json`, {
       type: 'application/json',
     });
 
     const upload = await pinata.upload.public.file(file);
 
-    console.log('✅ Bundle uploaded to IPFS:', upload.cid);
+    console.log('✅ Encrypted bundle uploaded to IPFS:', upload.cid);
     console.log('   Upload ID:', upload.id);
     console.log('   Size:', upload.size, 'bytes');
 
@@ -420,38 +451,77 @@ export async function uploadBundleToIPFS(bundle: UserTOTPBundle, oldCID?: string
 }
 
 /**
- * Retrieve a complete user TOTP bundle from IPFS
+ * Retrieve a complete user TOTP bundle from IPFS (decrypted)
  * Reference: https://docs.pinata.cloud/gateways/retrieving-files
  * 
+ * NOTE: The bundle is fully encrypted on IPFS. This function decrypts it using
+ * the wallet signature. Supports both v1 (unencrypted) and v2 (encrypted) bundles
+ * for backward compatibility.
+ * 
  * @param cid The IPFS Content Identifier
- * @returns The complete user TOTP bundle
+ * @param signature The user's wallet signature (for bundle decryption)
+ * @returns The complete user TOTP bundle (decrypted)
  */
-export async function retrieveBundleFromIPFS(cid: string): Promise<UserTOTPBundle> {
+export async function retrieveBundleFromIPFS(cid: string, signature: string): Promise<UserTOTPBundle> {
   if (!cid) {
     throw new Error('IPFS CID is required');
+  }
+
+  if (!signature) {
+    throw new Error('Wallet signature is required for bundle decryption');
   }
 
   try {
     const pinata = getPinataClient();
 
-    console.log('📥 Retrieving bundle from IPFS:', cid);
+    console.log('📥 Retrieving encrypted bundle from IPFS:', cid);
 
     // Retrieve content using the v3 SDK
     const data = await pinata.gateways.public.get(cid);
 
     // Parse the JSON response
-    const bundle = (typeof data.data === 'string' ? JSON.parse(data.data) : data.data) as UserTOTPBundle;
+    const rawData = (typeof data.data === 'string' ? JSON.parse(data.data) : data.data);
     
-    // Validate the bundle structure
-    if (!bundle.accounts || !Array.isArray(bundle.accounts)) {
-      throw new Error('Invalid bundle structure retrieved from IPFS');
+    // Check if this is an encrypted bundle (v2) or legacy unencrypted bundle (v1)
+    if (rawData.version === 2 && rawData.encryptedData) {
+      // v2: Encrypted bundle - decrypt it
+      const encryptedBundle = rawData as EncryptedBundle;
+      
+      console.log('🔓 Decrypting bundle (v2 encrypted format)...');
+      const decryptedBundle = await decryptBundleGCM(
+        encryptedBundle.encryptedData,
+        encryptedBundle.iv,
+        encryptedBundle.salt,
+        signature
+      ) as UserTOTPBundle;
+      
+      // Validate the decrypted bundle structure
+      if (!decryptedBundle.accounts || !Array.isArray(decryptedBundle.accounts)) {
+        throw new Error('Invalid bundle structure after decryption');
+      }
+
+      console.log('✅ Retrieved and decrypted bundle from IPFS');
+      console.log('   User:', decryptedBundle.userAddress);
+      console.log('   Accounts:', decryptedBundle.accounts.length);
+
+      return decryptedBundle;
+    } else {
+      // v1: Legacy unencrypted bundle - use as-is for backward compatibility
+      console.log('⚠️  Retrieved legacy unencrypted bundle (v1 format)');
+      const bundle = rawData as UserTOTPBundle;
+      
+      // Validate the bundle structure
+      if (!bundle.accounts || !Array.isArray(bundle.accounts)) {
+        throw new Error('Invalid bundle structure retrieved from IPFS');
+      }
+
+      console.log('✅ Retrieved bundle from IPFS');
+      console.log('   User:', bundle.userAddress);
+      console.log('   Accounts:', bundle.accounts.length);
+      console.log('   ⚠️  Note: This bundle will be upgraded to encrypted format on next save');
+
+      return bundle;
     }
-
-    console.log('✅ Retrieved bundle from IPFS');
-    console.log('   User:', bundle.userAddress);
-    console.log('   Accounts:', bundle.accounts.length);
-
-    return bundle;
   } catch (error) {
     console.error('❌ Bundle IPFS retrieval error:', error);
     
@@ -467,6 +537,15 @@ export async function retrieveBundleFromIPFS(cid: string): Promise<UserTOTPBundl
         throw new Error(
           'IPFS Gateway timeout. Please try again in a moment. ' +
           'The content may still be propagating through the network.'
+        );
+      }
+
+      if (error.message.includes('decrypt')) {
+        throw new Error(
+          'Failed to decrypt bundle. This may be due to:\n' +
+          '1. Wrong wallet signature\n' +
+          '2. Corrupted data on IPFS\n' +
+          '3. Bundle was encrypted with a different signature'
         );
       }
 

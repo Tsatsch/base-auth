@@ -212,3 +212,102 @@ export function validateSecret(secret: string): boolean {
 export function cleanSecret(secret: string): string {
   return secret.replace(/\s/g, '').toUpperCase();
 }
+
+/**
+ * Encrypts an entire bundle (JSON) using AES-256-GCM with signature-derived key
+ * This provides an additional layer of encryption for all bundle metadata
+ * @param bundleData The bundle object to encrypt (will be JSON stringified)
+ * @param signature The user's wallet signature (used for key derivation)
+ * @returns Object containing encrypted data, IV, and salt
+ */
+export async function encryptBundleGCM(
+  bundleData: unknown,
+  signature: string
+): Promise<{ encrypted: string; iv: string; salt: string }> {
+  if (!bundleData || !signature) {
+    throw new Error('Bundle data and signature are required for encryption');
+  }
+
+  try {
+    // Convert bundle to JSON string
+    const bundleJson = JSON.stringify(bundleData);
+    
+    // Generate random salt and IV
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12)); // 12 bytes for GCM
+
+    // Derive encryption key from signature
+    const key = await deriveKeyFromSignature(signature, salt);
+
+    // Encrypt the bundle
+    const encryptedBuffer = await crypto.subtle.encrypt(
+      {
+        name: 'AES-GCM',
+        iv: new Uint8Array(iv),
+      },
+      key,
+      stringToUint8Array(bundleJson).buffer as ArrayBuffer
+    );
+
+    return {
+      encrypted: arrayBufferToBase64(encryptedBuffer),
+      iv: arrayBufferToBase64(iv),
+      salt: arrayBufferToBase64(salt),
+    };
+  } catch (error) {
+    console.error('Bundle encryption error:', error);
+    throw new Error('Failed to encrypt bundle');
+  }
+}
+
+/**
+ * Decrypts an entire bundle using AES-256-GCM with signature-derived key
+ * @param encryptedData The encrypted bundle (base64)
+ * @param iv The initialization vector (base64)
+ * @param salt The salt used for key derivation (base64)
+ * @param signature The user's wallet signature (used for key derivation)
+ * @returns The decrypted bundle as parsed JSON
+ */
+export async function decryptBundleGCM(
+  encryptedData: string,
+  iv: string,
+  salt: string,
+  signature: string
+): Promise<unknown> {
+  if (!encryptedData || !iv || !salt || !signature) {
+    throw new Error('All parameters are required for bundle decryption');
+  }
+
+  try {
+    // Convert from base64
+    const encryptedBuffer = base64ToArrayBuffer(encryptedData);
+    const ivBuffer = base64ToArrayBuffer(iv);
+    const saltBuffer = new Uint8Array(base64ToArrayBuffer(salt));
+
+    // Derive decryption key from signature (same as encryption)
+    const key = await deriveKeyFromSignature(signature, saltBuffer);
+
+    // Decrypt the data
+    const decryptedBuffer = await crypto.subtle.decrypt(
+      {
+        name: 'AES-GCM',
+        iv: new Uint8Array(ivBuffer),
+      },
+      key,
+      encryptedBuffer
+    );
+
+    // Convert back to string and parse JSON
+    const decoder = new TextDecoder();
+    const decryptedString = decoder.decode(decryptedBuffer);
+
+    if (!decryptedString) {
+      throw new Error('Bundle decryption failed - invalid data or key');
+    }
+
+    return JSON.parse(decryptedString);
+  } catch (error) {
+    console.error('Bundle decryption error:', error);
+    throw new Error('Failed to decrypt bundle - wrong signature or corrupted data');
+  }
+}

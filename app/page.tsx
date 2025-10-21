@@ -237,8 +237,8 @@ export default function Home() {
     try {
       console.log("📦 Loading user bundle from IPFS:", userBundleCID);
       
-      // Retrieve user bundle from IPFS
-      const bundle: UserTOTPBundle = await retrieveBundleFromIPFS(userBundleCID);
+      // Retrieve and decrypt user bundle from IPFS (bundle is now fully encrypted)
+      const bundle: UserTOTPBundle = await retrieveBundleFromIPFS(userBundleCID, vaultSignature);
       
       console.log("Loading accounts, count:", bundle.accounts.length);
       const decrypted: DecryptedAccount[] = [];
@@ -416,7 +416,7 @@ export default function Home() {
       let bundle: UserTOTPBundle;
       if (userBundleCID && userBundleCID !== "") {
         console.log("📦 Fetching existing bundle:", userBundleCID);
-        bundle = await retrieveBundleFromIPFS(userBundleCID);
+        bundle = await retrieveBundleFromIPFS(userBundleCID, vaultSignature!);
       } else {
         console.log("🆕 Creating new bundle");
         bundle = createEmptyBundle(address);
@@ -458,10 +458,10 @@ export default function Home() {
       bundle.accounts.push(newAccount);
       bundle.lastUpdated = Date.now();
 
-      // Step 6: Upload updated bundle to IPFS (with cleanup of old bundle)
-      console.log("📤 Uploading updated bundle to IPFS...");
-      const newBundleCID = await uploadBundleToIPFS(bundle, userBundleCID);
-      console.log("✅ Bundle uploaded:", newBundleCID);
+      // Step 6: Upload updated bundle to IPFS (encrypted, with cleanup of old bundle)
+      console.log("📤 Uploading encrypted bundle to IPFS...");
+      const newBundleCID = await uploadBundleToIPFS(bundle, vaultSignature!, userBundleCID);
+      console.log("✅ Encrypted bundle uploaded:", newBundleCID);
       setUploadingToIPFS(false);
 
       // Step 7: Update contract with new CID
@@ -522,16 +522,16 @@ export default function Home() {
       }
       
       console.log("📦 Fetching bundle to remove account...");
-      const bundle = await retrieveBundleFromIPFS(userBundleCID);
+      const bundle = await retrieveBundleFromIPFS(userBundleCID, vaultSignature!);
       
       // Remove account from bundle
       bundle.accounts = bundle.accounts.filter(acc => acc.id !== accountToDelete.id);
       bundle.lastUpdated = Date.now();
       
-      // Upload updated bundle (with cleanup of old bundle)
-      console.log("📤 Uploading updated bundle...");
-      const newBundleCID = await uploadBundleToIPFS(bundle, userBundleCID);
-      console.log("✅ Bundle uploaded:", newBundleCID);
+      // Upload updated encrypted bundle (with cleanup of old bundle)
+      console.log("📤 Uploading updated encrypted bundle...");
+      const newBundleCID = await uploadBundleToIPFS(bundle, vaultSignature!, userBundleCID);
+      console.log("✅ Encrypted bundle uploaded:", newBundleCID);
       
       // Update contract
       await writeContract({
