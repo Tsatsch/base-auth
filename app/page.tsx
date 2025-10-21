@@ -2,16 +2,21 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnect, useWaitForTransactionReceipt, useConfig } from "wagmi";
+import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnect, useWaitForTransactionReceipt, useConfig, useSignMessage, useSwitchChain } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { readContract } from "wagmi/actions";
+import { base, baseSepolia } from "wagmi/chains";
 import styles from "./page.module.css";
 import { encryptSecretGCM, decryptSecretGCM, validateSecret, cleanSecret } from "../lib/crypto";
 import { generateTOTP, getTimeRemaining } from "../lib/totp";
 import { AUTHENTICATOR_ABI, AUTHENTICATOR_CONTRACT_ADDRESS, type Account } from "../lib/contract";
 import { uploadToIPFS, retrieveFromIPFS, uploadImageToIPFS, getIPFSImageURL, type SecretMetadata } from "../lib/ipfs";
 import { compressImage, isValidImageFile } from "../lib/imageCompression";
-import { requestVaultSignature, isValidSignature } from "../lib/signature";
+import { VAULT_UNLOCK_MESSAGE, isValidSignature } from "../lib/signature";
+import { parseOTPAuthURI } from "../lib/totp";
+import QRScanner from "../components/QRScanner";
+import { QRScanResult } from "../lib/qrScanner";
+import QRCodeGenerator from "../components/QRCodeGenerator";
 
 interface DecryptedAccount {
   accountName: string;
@@ -21,15 +26,29 @@ interface DecryptedAccount {
   logoCID?: string;
 }
 
+// Get current network configuration
+const getCurrentNetworkConfig = () => {
+  const network = process.env.NEXT_PUBLIC_NETWORK || "testnet";
+  return network === "mainnet" 
+    ? { chain: base, name: "Base Mainnet", chainId: base.id }
+    : { chain: baseSepolia, name: "Base Sepolia", chainId: baseSepolia.id };
+};
+
 export default function Home() {
   const { isFrameReady, setFrameReady } = useMiniKit();
   const { address, isConnected } = useAccount();
   const { connect } = useConnect();
   const { disconnect } = useDisconnect();
+  const { switchChain } = useSwitchChain();
   const config = useConfig();
+  
+  // Get current network configuration
+  const networkConfig = getCurrentNetworkConfig();
   const [accounts, setAccounts] = useState<DecryptedAccount[]>([]);
   const [timeRemaining, setTimeRemaining] = useState(30);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [showQRGenerator, setShowQRGenerator] = useState(false);
   const [newAccountName, setNewAccountName] = useState("");
   const [newSecret, setNewSecret] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -39,6 +58,7 @@ export default function Home() {
   const [uploadingToIPFS, setUploadingToIPFS] = useState(false);
   const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | undefined>();
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [hasAttemptedNetworkSwitch, setHasAttemptedNetworkSwitch] = useState(false);
   
   // Vault unlock state
   const [vaultSignature, setVaultSignature] = useState<string | null>(null);
@@ -52,6 +72,23 @@ export default function Home() {
     }
   }, [setFrameReady, isFrameReady]);
 
+  // Ensure wallet is on the correct network (Base Sepolia or Base Mainnet)
+  const ensureCorrectNetwork = useCallback(async () => {
+    if (!isConnected || !switchChain) {
+      throw new Error("Wallet not connected or switch chain not available");
+    }
+
+    try {
+      console.log(`🔄 Attempting to switch to ${networkConfig.name} network (Chain ID: ${networkConfig.chainId})`);
+      await switchChain({ chainId: networkConfig.chainId });
+      console.log(`✅ Successfully switched to ${networkConfig.name} network`);
+      return true;
+    } catch (error) {
+      console.warn(`⚠️ Failed to switch to ${networkConfig.name}:`, error);
+      throw new Error(`Failed to switch to ${networkConfig.name} network. Please switch manually in your wallet.`);
+    }
+  }, [isConnected, switchChain, networkConfig]);
+
   // Auto-connect to injected provider on mount
   useEffect(() => {
     if (!isConnected && isFrameReady) {
@@ -60,17 +97,68 @@ export default function Home() {
     }
   }, [isConnected, isFrameReady, connect]);
 
+  // Ensure correct network after connection (separate effect to prevent loops)
+  useEffect(() => {
+    if (isConnected && isFrameReady && !hasAttemptedNetworkSwitch) {
+      // Small delay to ensure wallet is fully connected
+      const timer = setTimeout(async () => {
+        try {
+          await ensureCorrectNetwork();
+          setHasAttemptedNetworkSwitch(true);
+        } catch (error) {
+          console.warn("Auto network switch failed:", error);
+        }
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected, isFrameReady, hasAttemptedNetworkSwitch]);
+
+  // Contract interactions
+  const { writeContract, data: writeData, error: writeError, isPending: _isWritePending, reset: resetWrite } = useWriteContract();
+  
+  // Signature for vault unlocking
+  const { signMessage, data: signature, error: signError, isPending: isSignPending } = useSignMessage();
+
   // Lock vault when wallet disconnects
   useEffect(() => {
     if (!isConnected) {
       setVaultSignature(null);
       setIsVaultUnlocked(false);
       setAccounts([]);
+      setHasAttemptedNetworkSwitch(false); // Reset network switch attempt
     }
   }, [isConnected]);
 
-  // Contract interactions
-  const { writeContract, data: writeData, error: writeError, isPending: _isWritePending, reset: resetWrite } = useWriteContract();
+  // Handle signature response
+  useEffect(() => {
+    if (signature) {
+      console.log("✅ Signature received:", signature);
+      
+      // Validate signature
+      if (!isValidSignature(signature)) {
+        setError("Invalid signature received");
+        setIsUnlocking(false);
+        return;
+      }
+
+      // Store signature and unlock vault
+      setVaultSignature(signature);
+      setIsVaultUnlocked(true);
+      setIsUnlocking(false);
+      
+      console.log("✅ Vault unlocked successfully");
+    }
+  }, [signature]);
+
+  // Handle signature errors
+  useEffect(() => {
+    if (signError) {
+      console.error("❌ Signature error:", signError);
+      setError(`Failed to unlock vault: ${signError.message}`);
+      setIsUnlocking(false);
+    }
+  }, [signError]);
   
   // Log write errors
   useEffect(() => {
@@ -337,6 +425,18 @@ export default function Home() {
       return;
     }
 
+    // Ensure we're on the correct network before proceeding with transaction
+    console.log(`🔐 Preparing to add account - ensuring wallet is on ${networkConfig.name}...`);
+    try {
+      await ensureCorrectNetwork();
+      console.log(`✅ Wallet is on correct network (${networkConfig.name}) - proceeding with transaction`);
+    } catch (error) {
+      const errorMessage = `❌ Network switch failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please switch to ${networkConfig.name} network in your wallet manually.`;
+      setError(errorMessage);
+      console.error(errorMessage);
+      return;
+    }
+
     if (!newAccountName.trim()) {
       setError("Please enter an account name");
       return;
@@ -431,6 +531,18 @@ export default function Home() {
   const handleDeleteAccount = async (index: number) => {
     if (!address) return;
 
+    // Ensure we're on the correct network before proceeding with transaction
+    console.log(`🗑️ Preparing to delete account - ensuring wallet is on ${networkConfig.name}...`);
+    try {
+      await ensureCorrectNetwork();
+      console.log(`✅ Wallet is on correct network (${networkConfig.name}) - proceeding with deletion`);
+    } catch (error) {
+      const errorMessage = `❌ Network switch failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please switch to ${networkConfig.name} network in your wallet manually.`;
+      setError(errorMessage);
+      console.error(errorMessage);
+      return;
+    }
+
     try {
       setIsLoading(true);
       
@@ -464,6 +576,19 @@ export default function Home() {
     connect({ connector: injected() });
   };
 
+  const handleSwitchToCorrectNetwork = async () => {
+    console.log(`🔄 Manual network switch requested - switching to ${networkConfig.name}...`);
+    try {
+      await ensureCorrectNetwork();
+      setError(""); // Clear any previous errors
+      console.log(`✅ Manual network switch successful`);
+    } catch (error) {
+      const errorMessage = `❌ Manual network switch failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      setError(errorMessage);
+      console.error(errorMessage);
+    }
+  };
+
   const handleDisconnect = () => {
     disconnect();
   };
@@ -479,23 +604,11 @@ export default function Home() {
       setError("");
 
       console.log("🔐 Requesting vault signature...");
+      console.log("   Message:", VAULT_UNLOCK_MESSAGE);
       
-      // Get wallet client for signing
-      const walletClient = await config.getClient();
+      // Request signature using wagmi hook
+      signMessage({ message: VAULT_UNLOCK_MESSAGE });
       
-      // Request signature
-      const signature = await requestVaultSignature(walletClient);
-      
-      // Validate signature
-      if (!isValidSignature(signature)) {
-        throw new Error("Invalid signature received");
-      }
-
-      // Store signature and unlock vault
-      setVaultSignature(signature);
-      setIsVaultUnlocked(true);
-      
-      console.log("✅ Vault unlocked successfully");
     } catch (err) {
       console.error("❌ Failed to unlock vault:", err);
       if (err instanceof Error) {
@@ -503,7 +616,6 @@ export default function Home() {
       } else {
         setError("Failed to unlock vault. Please try again.");
       }
-    } finally {
       setIsUnlocking(false);
     }
   };
@@ -513,6 +625,19 @@ export default function Home() {
     setIsVaultUnlocked(false);
     setAccounts([]);
     console.log("🔒 Vault locked");
+  };
+
+  const handleQRScanSuccess = (result: QRScanResult) => {
+    if (result.success && result.data) {
+      setNewSecret(result.data.secret);
+      if (result.data.account && result.data.account !== 'Scanned Account') {
+        setNewAccountName(result.data.account);
+      } else if (result.data.issuer && result.data.issuer !== 'Unknown') {
+        setNewAccountName(result.data.issuer);
+      }
+      setShowQRScanner(false);
+      console.log("✅ QR code scanned successfully:", result.data);
+    }
   };
 
   return (
@@ -525,21 +650,41 @@ export default function Home() {
             <span className={styles.titleAuth}>AUTH</span>
           </h1>
         </div>
-        {isConnected && address ? (
-          <div 
-            className={styles.walletInfo}
-            onClick={handleDisconnect}
-            style={{ cursor: 'pointer' }}
-            title="Click to disconnect"
+        <div className={styles.headerActions}>
+          {isConnected && address ? (
+            <>
+              <button 
+                className={styles.networkButton}
+                onClick={handleSwitchToCorrectNetwork}
+                title={`Switch to ${networkConfig.name}`}
+              >
+                🔄 {networkConfig.name}
+              </button>
+              <div 
+                className={styles.walletInfo}
+                onClick={handleDisconnect}
+                style={{ cursor: 'pointer' }}
+                title="Click to disconnect"
+              >
+                <span>🔗</span>
+                <span className={styles.walletAddress}>{formatAddress(address)}</span>
+              </div>
+            </>
+          ) : (
+            <button className={styles.connectButton} onClick={handleConnect}>
+              Connect Wallet
+            </button>
+          )}
+          
+          {/* Development test button - remove in production */}
+          <button 
+            className={styles.testButton}
+            onClick={() => setShowQRGenerator(true)}
+            title="Generate test QR codes"
           >
-            <span>🔗</span>
-            <span className={styles.walletAddress}>{formatAddress(address)}</span>
-          </div>
-        ) : (
-          <button className={styles.connectButton} onClick={handleConnect}>
-            Connect Wallet
+            🧪
           </button>
-        )}
+        </div>
       </div>
 
       {isTxPending && (
@@ -566,10 +711,10 @@ export default function Home() {
           <button
             className={styles.connectButton}
             onClick={handleUnlockVault}
-            disabled={isUnlocking}
+            disabled={isUnlocking || isSignPending}
             type="button"
           >
-            {isUnlocking ? (
+            {isUnlocking || isSignPending ? (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span className={styles.spinner} aria-hidden />
                 Unlocking...
@@ -711,14 +856,25 @@ export default function Home() {
                 <label htmlFor="secret" className={styles.label}>
                   2FA Secret Key
                 </label>
-                <textarea
-                  id="secret"
-                  placeholder="Paste your 2FA secret key here (base32 encoded)"
-                  value={newSecret}
-                  onChange={(e) => setNewSecret(e.target.value)}
-                  className={styles.textarea}
-                  disabled={isLoading}
-                />
+                <div className={styles.secretInputContainer}>
+                  <textarea
+                    id="secret"
+                    placeholder="Paste your 2FA secret key here (base32 encoded)"
+                    value={newSecret}
+                    onChange={(e) => setNewSecret(e.target.value)}
+                    className={styles.textarea}
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    className={styles.qrButton}
+                    onClick={() => setShowQRScanner(true)}
+                    disabled={isLoading}
+                    title="Scan QR code"
+                  >
+                    📷
+                  </button>
+                </div>
                 <p className={styles.hint}>
                   The secret is encrypted with AES-256-GCM and stored on IPFS.
                   Only the IPFS CID is stored on-chain.
@@ -782,6 +938,17 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      <QRScanner
+        isOpen={showQRScanner}
+        onClose={() => setShowQRScanner(false)}
+        onScanSuccess={handleQRScanSuccess}
+      />
+
+      <QRCodeGenerator
+        isOpen={showQRGenerator}
+        onClose={() => setShowQRGenerator(false)}
+      />
     </div>
   );
 }

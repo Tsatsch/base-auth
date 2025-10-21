@@ -1,0 +1,184 @@
+/**
+ * QR Code Scanner Utilities
+ * Handles QR code scanning and parsing for TOTP secrets
+ */
+
+import QrScanner from 'qr-scanner';
+
+export interface QRScanResult {
+  success: boolean;
+  data?: {
+    secret: string;
+    issuer?: string;
+    account?: string;
+  };
+  error?: string;
+}
+
+/**
+ * Scans QR code from camera stream or image file
+ * @param videoElement HTML video element to display camera feed
+ * @param onResult Callback function called when QR code is detected
+ * @returns Promise that resolves when scanning starts
+ */
+export async function startQRScan(
+  videoElement: HTMLVideoElement,
+  onResult: (result: QRScanResult) => void
+): Promise<void> {
+  try {
+    // Check if camera is available
+    if (!QrScanner.hasCamera()) {
+      onResult({
+        success: false,
+        error: 'No camera found on this device'
+      });
+      return;
+    }
+
+    // Create QR scanner instance
+    const qrScanner = new QrScanner(
+      videoElement,
+      (result) => {
+        console.log('QR Code detected:', result);
+        
+        // Parse the QR code data
+        const parsedData = parseQRCodeData(result);
+        
+        if (parsedData) {
+          onResult({
+            success: true,
+            data: parsedData
+          });
+        } else {
+          onResult({
+            success: false,
+            error: 'Invalid QR code format. Please scan a valid TOTP QR code.'
+          });
+        }
+        
+        // Stop scanning after successful scan
+        qrScanner.stop();
+      },
+      {
+        highlightScanRegion: true,
+        highlightCodeOutline: true,
+        maxScansPerSecond: 5,
+      }
+    );
+
+    // Start scanning
+    await qrScanner.start();
+    
+    // Store scanner instance for cleanup
+    (videoElement as any).qrScanner = qrScanner;
+    
+  } catch (error) {
+    console.error('QR Scanner error:', error);
+    onResult({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to start camera'
+    });
+  }
+}
+
+/**
+ * Stops QR code scanning
+ * @param videoElement HTML video element used for scanning
+ */
+export function stopQRScan(videoElement: HTMLVideoElement): void {
+  const qrScanner = (videoElement as any).qrScanner;
+  if (qrScanner) {
+    qrScanner.stop();
+    qrScanner.destroy();
+    delete (videoElement as any).qrScanner;
+  }
+}
+
+/**
+ * Parses QR code data to extract TOTP information
+ * @param qrData Raw QR code data
+ * @returns Parsed TOTP data or null if invalid
+ */
+function parseQRCodeData(qrData: QrScanner.ScanResult): { secret: string; issuer?: string; account?: string } | null {
+  try {
+    const data = qrData.data;
+    
+    // Check if it's a TOTP URI
+    if (data.startsWith('otpauth://totp/')) {
+      return parseOTPAuthURI(data);
+    }
+    
+    // Check if it's a base32 secret (common format)
+    const base32Regex = /^[A-Z2-7]+=*$/;
+    if (base32Regex.test(data.toUpperCase()) && data.length >= 16) {
+      return {
+        secret: data.toUpperCase(),
+        issuer: 'Unknown',
+        account: 'Scanned Account'
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error parsing QR code data:', error);
+    return null;
+  }
+}
+
+/**
+ * Parses an OTPAuth URI and extracts the secret and metadata
+ * @param uri The otpauth:// URI
+ * @returns Parsed data or null if invalid
+ */
+function parseOTPAuthURI(uri: string): { secret: string; issuer?: string; account?: string } | null {
+  try {
+    const url = new URL(uri);
+    
+    // Validate protocol
+    if (url.protocol !== 'otpauth:') {
+      return null;
+    }
+    
+    // Get secret from query parameters
+    const secret = url.searchParams.get('secret');
+    if (!secret) {
+      return null;
+    }
+    
+    // Parse pathname to get issuer and account
+    const pathname = url.pathname.substring(1); // Remove leading slash
+    const parts = pathname.split(':');
+    
+    let issuer = url.searchParams.get('issuer') || parts[0] || 'Unknown';
+    let account = parts[1] || parts[0] || 'Account';
+    
+    return {
+      secret: secret.toUpperCase(),
+      issuer,
+      account
+    };
+  } catch (error) {
+    console.error('Error parsing OTPAuth URI:', error);
+    return null;
+  }
+}
+
+/**
+ * Checks if the browser supports camera access
+ * @returns Promise that resolves to true if camera is available
+ */
+export async function checkCameraSupport(): Promise<boolean> {
+  try {
+    if (!QrScanner.hasCamera()) {
+      return false;
+    }
+    
+    // Try to get camera permissions
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    stream.getTracks().forEach(track => track.stop());
+    return true;
+  } catch (error) {
+    console.error('Camera support check failed:', error);
+    return false;
+  }
+}
