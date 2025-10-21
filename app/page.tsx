@@ -619,7 +619,7 @@ export default function Home() {
     console.log("🔒 Vault locked");
   };
 
-  const handleQRScanSuccess = (result: QRScanResult) => {
+  const handleQRScanSuccess = useCallback((result: QRScanResult) => {
     if (result.success) {
       // Check if it's a migration (batch import)
       if (result.migrationData && result.migrationData.accounts) {
@@ -639,7 +639,7 @@ export default function Home() {
         console.log("✅ QR code scanned successfully:", result.data);
       }
     }
-  };
+  }, []);
 
   const handleMigrationImport = async (selectedAccounts: ParsedMigrationAccount[]) => {
     if (!address || !vaultSignature) {

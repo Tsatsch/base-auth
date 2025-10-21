@@ -45,6 +45,21 @@ export async function startQRScan(
       return;
     }
 
+    // Patch canvas context creation to add willReadFrequently attribute
+    // This prevents the Canvas2D performance warning when using getImageData repeatedly
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    const patchedGetContext = function(this: HTMLCanvasElement, contextType: string, contextAttributes?: any) {
+      if (contextType === '2d') {
+        const attrs = contextAttributes || {};
+        attrs.willReadFrequently = true;
+        return originalGetContext.call(this, contextType, attrs);
+      }
+      return originalGetContext.call(this, contextType, contextAttributes);
+    };
+    
+    // Temporarily patch the getContext method
+    HTMLCanvasElement.prototype.getContext = patchedGetContext as any;
+
     // Create QR scanner instance
     const qrScanner = new QrScanner(
       videoElement,
@@ -89,6 +104,9 @@ export async function startQRScan(
       }
     );
 
+    // Restore original getContext method
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+
     // Start scanning
     await qrScanner.start();
     
@@ -97,6 +115,17 @@ export async function startQRScan(
     
   } catch (error) {
     console.error('QR Scanner error:', error);
+    
+    // Restore original getContext method in case of error
+    try {
+      const originalGetContext = HTMLCanvasElement.prototype.getContext;
+      if (HTMLCanvasElement.prototype.getContext.name === 'patchedGetContext') {
+        HTMLCanvasElement.prototype.getContext = originalGetContext;
+      }
+    } catch (e) {
+      // Ignore restoration errors
+    }
+    
     onResult({
       success: false,
       error: error instanceof Error ? error.message : 'Failed to start camera'
