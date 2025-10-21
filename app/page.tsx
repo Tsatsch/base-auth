@@ -18,6 +18,7 @@ import { QRScanResult } from "../lib/qrScanner";
 import QRCodeGenerator from "../components/QRCodeGenerator";
 import MigrationImport from "../components/MigrationImport";
 import { ParsedMigrationAccount } from "../lib/googleAuthMigration";
+import { resolveBaseName, formatAddress, formatBaseName } from "../lib/basename";
 
 interface DecryptedAccount {
   id: string;
@@ -67,6 +68,10 @@ export default function Home() {
   const [vaultSignature, setVaultSignature] = useState<string | null>(null);
   const [isVaultUnlocked, setIsVaultUnlocked] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
+  
+  // Base name resolution state
+  const [baseName, setBaseName] = useState<string | null>(null);
+  const [isResolvingBaseName, setIsResolvingBaseName] = useState(false);
 
   // Initialize the miniapp
   useEffect(() => {
@@ -74,6 +79,29 @@ export default function Home() {
       setFrameReady();
     }
   }, [setFrameReady, isFrameReady]);
+
+  // Resolve base name when wallet connects
+  useEffect(() => {
+    const resolveWalletBaseName = async () => {
+      if (!address || !isConnected) {
+        setBaseName(null);
+        return;
+      }
+
+      setIsResolvingBaseName(true);
+      try {
+        const resolvedBaseName = await resolveBaseName(address);
+        setBaseName(resolvedBaseName);
+      } catch (error) {
+        console.warn('Failed to resolve base name:', error);
+        setBaseName(null);
+      } finally {
+        setIsResolvingBaseName(false);
+      }
+    };
+
+    resolveWalletBaseName();
+  }, [address, isConnected]);
 
   // Ensure wallet is on the correct network (Base Sepolia or Base Mainnet)
   const ensureCorrectNetwork = useCallback(async () => {
@@ -769,7 +797,20 @@ export default function Home() {
                 title="Click to disconnect"
               >
                 <span>🔗</span>
-                <span className={styles.walletAddress}>{formatAddress(address)}</span>
+                <span className={styles.walletAddress}>
+                  {isResolvingBaseName ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <span className={styles.spinner} aria-hidden />
+                      Resolving...
+                    </span>
+                  ) : baseName ? (
+                    <span title={`${formatBaseName(baseName)} (${formatAddress(address)})`} style={{ color: '#0000ff' }}>
+                      {formatBaseName(baseName)}
+                    </span>
+                  ) : (
+                    formatAddress(address)
+                  )}
+                </span>
               </div>
             </>
           ) : (

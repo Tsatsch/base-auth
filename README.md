@@ -12,6 +12,7 @@ Base Auth is a decentralized authenticator mini-app that combines IPFS storage w
 ## ✨ Features
 
 - **🔗 Wallet-Based Authentication**: Your wallet is your identity - no passwords needed
+- **🏷️ Base Name Resolution**: Automatically displays your Base name instead of wallet address when available
 - **🔒 Military-Grade Encryption**: AES-256-GCM with PBKDF2 key derivation (100k iterations)
 - **📦 IPFS Storage**: Encrypted secrets stored on decentralized IPFS network
 - **⛓️ Blockchain References**: Only immutable IPFS CIDs stored on-chain
