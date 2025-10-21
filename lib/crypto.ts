@@ -12,7 +12,7 @@ const KEY_LENGTH = 256; // AES-256
  */
 function stringToUint8Array(str: string): Uint8Array {
   const encoder = new TextEncoder();
-  return encoder.encode(str);
+  return new Uint8Array(encoder.encode(str));
 }
 
 /**
@@ -40,16 +40,20 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 
 /**
- * Derives a cryptographic key from wallet address using PBKDF2
- * @param walletAddress The user's wallet address
+ * Derives a cryptographic key from wallet signature using PBKDF2
+ * @param signature The user's wallet signature (hex string)
  * @param salt The salt for key derivation
  * @returns CryptoKey for AES-GCM encryption
  */
-async function deriveKey(walletAddress: string, salt: Uint8Array): Promise<CryptoKey> {
-  // Import the wallet address as key material
+async function deriveKeyFromSignature(signature: string, salt: Uint8Array): Promise<CryptoKey> {
+  // Convert hex signature to bytes and hash with SHA-256
+  const signatureBytes = hexToUint8Array(signature);
+  const signatureHash = await crypto.subtle.digest('SHA-256', signatureBytes.buffer as ArrayBuffer);
+  
+  // Import the signature hash as key material
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
-    stringToUint8Array(walletAddress.toLowerCase()),
+    signatureHash,
     { name: 'PBKDF2' },
     false,
     ['deriveBits', 'deriveKey']
@@ -59,7 +63,7 @@ async function deriveKey(walletAddress: string, salt: Uint8Array): Promise<Crypt
   const key = await crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt: salt,
+      salt: new Uint8Array(salt),
       iterations: ITERATIONS,
       hash: 'SHA-256',
     },
@@ -73,17 +77,35 @@ async function deriveKey(walletAddress: string, salt: Uint8Array): Promise<Crypt
 }
 
 /**
- * Encrypts a 2FA secret using AES-256-GCM with wallet-derived key
+ * Convert hex string to Uint8Array for crypto operations
+ * @param hexString The hex string to convert
+ * @returns Uint8Array
+ */
+function hexToUint8Array(hexString: string): Uint8Array {
+  // Remove 0x prefix if present
+  const cleanHex = hexString.startsWith('0x') ? hexString.slice(2) : hexString;
+  
+  // Convert hex pairs to bytes
+  const bytes = new Uint8Array(cleanHex.length / 2);
+  for (let i = 0; i < cleanHex.length; i += 2) {
+    bytes[i / 2] = parseInt(cleanHex.substr(i, 2), 16);
+  }
+  
+  return new Uint8Array(bytes);
+}
+
+/**
+ * Encrypts a 2FA secret using AES-256-GCM with signature-derived key
  * @param secret The 2FA secret to encrypt
- * @param walletAddress The user's wallet address (used for key derivation)
+ * @param signature The user's wallet signature (used for key derivation)
  * @returns Object containing encrypted data, IV, and salt
  */
 export async function encryptSecretGCM(
   secret: string,
-  walletAddress: string
+  signature: string
 ): Promise<{ encrypted: string; iv: string; salt: string }> {
-  if (!secret || !walletAddress) {
-    throw new Error('Secret and wallet address are required for encryption');
+  if (!secret || !signature) {
+    throw new Error('Secret and signature are required for encryption');
   }
 
   try {
@@ -91,17 +113,17 @@ export async function encryptSecretGCM(
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iv = crypto.getRandomValues(new Uint8Array(12)); // 12 bytes for GCM
 
-    // Derive encryption key
-    const key = await deriveKey(walletAddress, salt);
+    // Derive encryption key from signature
+    const key = await deriveKeyFromSignature(signature, salt);
 
     // Encrypt the secret
     const encryptedBuffer = await crypto.subtle.encrypt(
       {
         name: 'AES-GCM',
-        iv: iv,
+        iv: new Uint8Array(iv),
       },
       key,
-      stringToUint8Array(secret)
+      stringToUint8Array(secret).buffer as ArrayBuffer
     );
 
     return {
@@ -116,20 +138,20 @@ export async function encryptSecretGCM(
 }
 
 /**
- * Decrypts a 2FA secret using AES-256-GCM with wallet-derived key
+ * Decrypts a 2FA secret using AES-256-GCM with signature-derived key
  * @param encryptedData The encrypted secret (base64)
  * @param iv The initialization vector (base64)
  * @param salt The salt used for key derivation (base64)
- * @param walletAddress The user's wallet address (used for key derivation)
+ * @param signature The user's wallet signature (used for key derivation)
  * @returns The decrypted secret
  */
 export async function decryptSecretGCM(
   encryptedData: string,
   iv: string,
   salt: string,
-  walletAddress: string
+  signature: string
 ): Promise<string> {
-  if (!encryptedData || !iv || !salt || !walletAddress) {
+  if (!encryptedData || !iv || !salt || !signature) {
     throw new Error('All parameters are required for decryption');
   }
 
@@ -139,14 +161,14 @@ export async function decryptSecretGCM(
     const ivBuffer = base64ToArrayBuffer(iv);
     const saltBuffer = new Uint8Array(base64ToArrayBuffer(salt));
 
-    // Derive decryption key (same as encryption)
-    const key = await deriveKey(walletAddress, saltBuffer);
+    // Derive decryption key from signature (same as encryption)
+    const key = await deriveKeyFromSignature(signature, saltBuffer);
 
     // Decrypt the data
     const decryptedBuffer = await crypto.subtle.decrypt(
       {
         name: 'AES-GCM',
-        iv: ivBuffer,
+        iv: new Uint8Array(ivBuffer),
       },
       key,
       encryptedBuffer

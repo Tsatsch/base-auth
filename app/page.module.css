@@ -320,6 +320,32 @@
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
 }
 
+.lockButton {
+  position: fixed;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  right: 5rem;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--gray-6);
+  color: var(--gray-12);
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.lockButton:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  background: var(--gray-7);
+}
+
 .modal {
   position: fixed;
   top: 0;

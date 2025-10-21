@@ -32,9 +32,9 @@ export const minikitConfig = {
     ogDescription: "Secure two-factor authentication management on Base blockchain",
     ogImageUrl: `${ROOT_URL}/blue-hero.png`,
   },
-  baseBuilder: {
+  /** baseBuilder: {
     ownerAddress: "0xA3a2Db8224a49FC803Dd1B004959e0Bf05f88Cfb"
-  },
+  },*/
 
 } as const;
 

@@ -11,6 +11,7 @@ import { generateTOTP, getTimeRemaining } from "../lib/totp";
 import { AUTHENTICATOR_ABI, AUTHENTICATOR_CONTRACT_ADDRESS, type Account } from "../lib/contract";
 import { uploadToIPFS, retrieveFromIPFS, uploadImageToIPFS, getIPFSImageURL, type SecretMetadata } from "../lib/ipfs";
 import { compressImage, isValidImageFile } from "../lib/imageCompression";
+import { requestVaultSignature, isValidSignature } from "../lib/signature";
 
 interface DecryptedAccount {
   accountName: string;
@@ -38,6 +39,11 @@ export default function Home() {
   const [uploadingToIPFS, setUploadingToIPFS] = useState(false);
   const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | undefined>();
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  
+  // Vault unlock state
+  const [vaultSignature, setVaultSignature] = useState<string | null>(null);
+  const [isVaultUnlocked, setIsVaultUnlocked] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
 
   // Initialize the miniapp
   useEffect(() => {
@@ -53,6 +59,15 @@ export default function Home() {
       connect({ connector: injected() });
     }
   }, [isConnected, isFrameReady, connect]);
+
+  // Lock vault when wallet disconnects
+  useEffect(() => {
+    if (!isConnected) {
+      setVaultSignature(null);
+      setIsVaultUnlocked(false);
+      setAccounts([]);
+    }
+  }, [isConnected]);
 
   // Contract interactions
   const { writeContract, data: writeData, error: writeError, isPending: _isWritePending, reset: resetWrite } = useWriteContract();
@@ -140,8 +155,8 @@ export default function Home() {
 
   // Load and decrypt accounts from IPFS
   const loadAccounts = useCallback(async () => {
-    if (!secretsData || !address) {
-      console.log("No secrets data or address available");
+    if (!secretsData || !address || !vaultSignature) {
+      console.log("No secrets data, address, or vault signature available");
       setAccounts([]);
       return;
     }
@@ -158,12 +173,12 @@ export default function Home() {
           // Retrieve encrypted metadata from IPFS
           const metadata: SecretMetadata = await retrieveFromIPFS(account.ipfsCID);
           
-          // Decrypt the secret using AES-256-GCM
+          // Decrypt the secret using AES-256-GCM with signature
           const decryptedSecret = await decryptSecretGCM(
             metadata.encryptedSecret,
             metadata.iv,
             metadata.salt,
-            address
+            vaultSignature
           );
           
           const code = generateTOTP(decryptedSecret, account.accountName);
@@ -187,7 +202,7 @@ export default function Home() {
     } catch (err) {
       console.error("Error loading accounts:", err);
     }
-  }, [secretsData, address]);
+  }, [secretsData, address, vaultSignature]);
 
   useEffect(() => {
     loadAccounts();
@@ -365,9 +380,9 @@ export default function Home() {
         console.log("✅ Logo uploaded to IPFS:", logoCID);
       }
 
-      // Step 2: Encrypt the secret with AES-256-GCM
-      console.log("🔐 Encrypting secret with AES-256-GCM...");
-      const { encrypted, iv, salt } = await encryptSecretGCM(cleanedSecret, address);
+      // Step 2: Encrypt the secret with AES-256-GCM using signature
+      console.log("🔐 Encrypting secret with AES-256-GCM using signature...");
+      const { encrypted, iv, salt } = await encryptSecretGCM(cleanedSecret, vaultSignature!);
       console.log("✅ Secret encrypted");
 
       // Step 3: Create metadata object
@@ -453,6 +468,53 @@ export default function Home() {
     disconnect();
   };
 
+  const handleUnlockVault = async () => {
+    if (!isConnected || !address) {
+      setError("Please connect your wallet first");
+      return;
+    }
+
+    try {
+      setIsUnlocking(true);
+      setError("");
+
+      console.log("🔐 Requesting vault signature...");
+      
+      // Get wallet client for signing
+      const walletClient = await config.getClient();
+      
+      // Request signature
+      const signature = await requestVaultSignature(walletClient);
+      
+      // Validate signature
+      if (!isValidSignature(signature)) {
+        throw new Error("Invalid signature received");
+      }
+
+      // Store signature and unlock vault
+      setVaultSignature(signature);
+      setIsVaultUnlocked(true);
+      
+      console.log("✅ Vault unlocked successfully");
+    } catch (err) {
+      console.error("❌ Failed to unlock vault:", err);
+      if (err instanceof Error) {
+        setError(`Failed to unlock vault: ${err.message}`);
+      } else {
+        setError("Failed to unlock vault. Please try again.");
+      }
+    } finally {
+      setIsUnlocking(false);
+    }
+  };
+
+  const handleLockVault = () => {
+    setVaultSignature(null);
+    setIsVaultUnlocked(false);
+    setAccounts([]);
+    console.log("🔒 Vault locked");
+  };
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
@@ -493,6 +555,29 @@ export default function Home() {
           <p className={styles.emptyDescription}>
             Connect your wallet to start managing your 2FA accounts securely with IPFS.
           </p>
+        </div>
+      ) : !isVaultUnlocked ? (
+        <div className={styles.emptyState}>
+          <div className={styles.emptyIcon}>🔒</div>
+          <h2 className={styles.emptyTitle}>Vault Locked</h2>
+          <p className={styles.emptyDescription}>
+            Click &apos;Unlock Vault&apos; to view your 2FA accounts. Your signature is required for security.
+          </p>
+          <button
+            className={styles.connectButton}
+            onClick={handleUnlockVault}
+            disabled={isUnlocking}
+            type="button"
+          >
+            {isUnlocking ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span className={styles.spinner} aria-hidden />
+                Unlocking...
+              </span>
+            ) : (
+              'Unlock Vault'
+            )}
+          </button>
         </div>
       ) : accounts.length === 0 ? (
         <div className={styles.emptyState}>
@@ -568,7 +653,7 @@ export default function Home() {
         </div>
       )}
 
-      {isConnected && (
+      {isConnected && isVaultUnlocked && (
         <button
           className={styles.addButton}
           onClick={() => setShowAddModal(true)}
@@ -577,6 +662,17 @@ export default function Home() {
           title="Add new 2FA account"
         >
           +
+        </button>
+      )}
+
+      {isConnected && isVaultUnlocked && (
+        <button
+          className={styles.lockButton}
+          onClick={handleLockVault}
+          type="button"
+          title="Lock vault"
+        >
+          🔒
         </button>
       )}
 
