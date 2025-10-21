@@ -16,6 +16,8 @@ import { VAULT_UNLOCK_MESSAGE, isValidSignature } from "../lib/signature";
 import QRScanner from "../components/QRScanner";
 import { QRScanResult } from "../lib/qrScanner";
 import QRCodeGenerator from "../components/QRCodeGenerator";
+import MigrationImport from "../components/MigrationImport";
+import { ParsedMigrationAccount } from "../lib/googleAuthMigration";
 
 interface DecryptedAccount {
   id: string;
@@ -48,6 +50,8 @@ export default function Home() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [showQRGenerator, setShowQRGenerator] = useState(false);
+  const [showMigrationImport, setShowMigrationImport] = useState(false);
+  const [migrationAccounts, setMigrationAccounts] = useState<ParsedMigrationAccount[]>([]);
   const [newAccountName, setNewAccountName] = useState("");
   const [newSecret, setNewSecret] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -615,18 +619,128 @@ export default function Home() {
     console.log("🔒 Vault locked");
   };
 
-  const handleQRScanSuccess = useCallback((result: QRScanResult) => {
-    if (result.success && result.data) {
-      setNewSecret(result.data.secret);
-      if (result.data.account && result.data.account !== 'Scanned Account') {
-        setNewAccountName(result.data.account);
-      } else if (result.data.issuer && result.data.issuer !== 'Unknown') {
-        setNewAccountName(result.data.issuer);
+  const handleQRScanSuccess = (result: QRScanResult) => {
+    if (result.success) {
+      // Check if it's a migration (batch import)
+      if (result.migrationData && result.migrationData.accounts) {
+        console.log(`✅ Migration QR scanned with ${result.migrationData.accounts.length} accounts`);
+        setMigrationAccounts(result.migrationData.accounts);
+        setShowQRScanner(false);
+        setShowMigrationImport(true);
+      } else if (result.data) {
+        // Single account
+        setNewSecret(result.data.secret);
+        if (result.data.account && result.data.account !== 'Scanned Account') {
+          setNewAccountName(result.data.account);
+        } else if (result.data.issuer && result.data.issuer !== 'Unknown') {
+          setNewAccountName(result.data.issuer);
+        }
+        setShowQRScanner(false);
+        console.log("✅ QR code scanned successfully:", result.data);
       }
-      setShowQRScanner(false);
-      console.log("✅ QR code scanned successfully:", result.data);
     }
-  }, []);
+  };
+
+  const handleMigrationImport = async (selectedAccounts: ParsedMigrationAccount[]) => {
+    if (!address || !vaultSignature) {
+      setError("Please connect your wallet and unlock vault first");
+      return;
+    }
+
+    // Ensure we're on the correct network before proceeding
+    console.log(`📦 Preparing to import ${selectedAccounts.length} accounts - ensuring wallet is on ${networkConfig.name}...`);
+    try {
+      await ensureCorrectNetwork();
+      console.log(`✅ Wallet is on correct network (${networkConfig.name}) - proceeding with import`);
+    } catch (error) {
+      const errorMessage = `❌ Network switch failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please switch to ${networkConfig.name} network in your wallet manually.`;
+      setError(errorMessage);
+      console.error(errorMessage);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setUploadingToIPFS(true);
+      setError("");
+
+      console.log("=".repeat(60));
+      console.log("📦 IMPORTING MULTIPLE ACCOUNTS FROM GOOGLE AUTHENTICATOR");
+      console.log("=".repeat(60));
+      console.log("Wallet Address:", address);
+      console.log("Number of Accounts:", selectedAccounts.length);
+      console.log("Contract Address:", AUTHENTICATOR_CONTRACT_ADDRESS);
+      console.log("=".repeat(60));
+
+      // Step 1: Fetch existing bundle or create new one
+      let bundle: UserTOTPBundle;
+      if (userBundleCID && userBundleCID !== "") {
+        console.log("📦 Fetching existing bundle:", userBundleCID);
+        bundle = await retrieveBundleFromIPFS(userBundleCID, vaultSignature);
+      } else {
+        console.log("🆕 Creating new bundle");
+        bundle = createEmptyBundle(address);
+      }
+
+      // Step 2: Process each selected account
+      for (const account of selectedAccounts) {
+        console.log(`🔐 Processing account: ${account.accountName} (${account.issuer})`);
+
+        // Encrypt the secret with AES-256-GCM using signature
+        const { encrypted, iv, salt } = await encryptSecretGCM(account.secret, vaultSignature);
+
+        // Create new account object
+        const newAccount: TOTPAccount = {
+          id: uuidv4(),
+          accountName: account.accountName,
+          encryptedSecret: encrypted,
+          algorithm: account.algorithm,
+          period: 30, // Standard TOTP period
+          digits: account.digits,
+          timestamp: Date.now(),
+          iv,
+          salt,
+          // Note: We don't transfer logos from Google Authenticator
+        };
+
+        bundle.accounts.push(newAccount);
+        console.log(`✅ Added account: ${account.accountName}`);
+      }
+
+      bundle.lastUpdated = Date.now();
+
+      // Step 3: Upload updated bundle to IPFS (encrypted, with cleanup of old bundle)
+      console.log("📤 Uploading encrypted bundle to IPFS...");
+      const newBundleCID = await uploadBundleToIPFS(bundle, vaultSignature, userBundleCID);
+      console.log("✅ Encrypted bundle uploaded:", newBundleCID);
+      setUploadingToIPFS(false);
+
+      // Step 4: Update contract with new CID
+      console.log("⛓️  Storing bundle CID on blockchain...");
+      await writeContract({
+        address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+        abi: AUTHENTICATOR_ABI,
+        functionName: "setUserData",
+        args: [newBundleCID],
+      });
+
+      console.log("✅ Transaction submitted! Waiting for confirmation...");
+      console.log("=".repeat(60));
+
+      // Close the migration import modal
+      setShowMigrationImport(false);
+      setMigrationAccounts([]);
+    } catch (err: unknown) {
+      console.error("❌ Error importing accounts:", err);
+      if (err instanceof Error) {
+        setError(`Failed to import accounts: ${err.message}`);
+      } else {
+        setError("Failed to import accounts. Please try again.");
+      }
+      setIsLoading(false);
+      setUploadingToIPFS(false);
+    }
+  };
 
   return (
     <div className={styles.container}>
@@ -936,6 +1050,17 @@ export default function Home() {
       <QRCodeGenerator
         isOpen={showQRGenerator}
         onClose={() => setShowQRGenerator(false)}
+      />
+
+      <MigrationImport
+        isOpen={showMigrationImport}
+        accounts={migrationAccounts}
+        onClose={() => {
+          setShowMigrationImport(false);
+          setMigrationAccounts([]);
+        }}
+        onImport={handleMigrationImport}
+        isLoading={isLoading}
       />
     </div>
   );

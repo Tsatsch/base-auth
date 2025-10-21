@@ -51,7 +51,7 @@ export default function QRScanner({ onScanSuccess, onClose, isOpen }: QRScannerP
         
         await startQRScan(videoRef.current, (result) => {
           setIsScanning(false);
-          if (result.success && result.data) {
+          if (result.success && (result.data || result.migrationData)) {
             onScanSuccess(result);
           } else {
             setError(result.error || 'Failed to scan QR code');
@@ -73,7 +73,7 @@ export default function QRScanner({ onScanSuccess, onClose, isOpen }: QRScannerP
       }
       setIsScanning(false);
     };
-  }, [isOpen, cameraSupported]);
+  }, [isOpen, cameraSupported, onScanSuccess]);
 
   if (!isOpen) {
     return null;
@@ -151,7 +151,7 @@ export default function QRScanner({ onScanSuccess, onClose, isOpen }: QRScannerP
                       try {
                         await startQRScan(videoRef.current, (result) => {
                           setIsScanning(false);
-                          if (result.success && result.data) {
+                          if (result.success && (result.data || result.migrationData)) {
                             onScanSuccess(result);
                           } else {
                             setError(result.error || 'Failed to scan QR code');
