@@ -647,6 +647,15 @@ export default function Home() {
         <div className={styles.accountsList}>
           {accounts.map((account) => (
             <div key={account.index} className={styles.accountCard}>
+              <button
+                className={styles.deleteButton}
+                onClick={() => handleDeleteAccount(account.index)}
+                disabled={isLoading}
+                type="button"
+                title="Delete account"
+              >
+                ✕
+              </button>
               <div className={styles.accountInfo}>
                 <div className={styles.accountHeader}>
                   {account.logoCID && (
@@ -686,15 +695,6 @@ export default function Home() {
                     </div>
                     <div className={styles.timerTextInline}>{timeRemaining}s</div>
                   </div>
-                  <button
-                    className={styles.deleteButton}
-                    onClick={() => handleDeleteAccount(account.index)}
-                    disabled={isLoading}
-                    type="button"
-                    title="Delete account"
-                  >
-                    ✕
-                  </button>
                 </div>
               </div>
             </div>

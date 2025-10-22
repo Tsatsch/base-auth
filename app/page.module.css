@@ -171,6 +171,7 @@
   justify-content: space-between;
   align-items: center;
   transition: border-color 0.2s;
+  position: relative;
 }
 
 .accountCard:hover {
@@ -211,7 +212,6 @@
   align-items: center;
   gap: 1rem;
   position: relative;
-  padding-right: 3.5rem;
 }
 
 .code {
@@ -319,9 +319,9 @@
   width: 2.5rem;
   height: 2.5rem;
   position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  right: 0.75rem;
+  top: 0.75rem;
+  z-index: 10;
 }
 
 .deleteButton:hover {
@@ -765,7 +765,6 @@
     flex-wrap: nowrap;
     gap: 0.5rem;
     min-height: 3rem;
-    padding-right: 0;
   }
 
   .code {
@@ -783,15 +782,14 @@
   }
 
   .deleteButton {
-    flex-shrink: 0;
     padding: 0.375rem;
     font-size: 1rem;
     width: 2.25rem;
     height: 2.25rem;
-    position: static;
-    transform: none;
-    top: auto;
-    right: auto;
+    position: absolute;
+    right: 0.5rem;
+    top: 0.5rem;
+    z-index: 10;
   }
 
   .pixelProgress {
