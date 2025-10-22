@@ -7,7 +7,9 @@
 
 ## 🚀 Why Base Auth?
 
-**Signature-Based Encryption for Maximum Security**: Unlike traditional crypto solutions that tie encryption directly to wallet addresses, Base Auth uses **cryptographic signatures** as the encryption key. When you store TOTP secrets, the system requires you to sign a message with your wallet - this signature becomes the encryption key for your 2FA data. This means your sensitive authentication codes are encrypted using the unique signature you generate, not your wallet address or private key, providing enhanced security and privacy.
+**Signature-Based Encryption for Maximum Security**: Unlike traditional crypto solutions that tie encryption directly to wallet addresses, Base Auth uses **cryptographic signatures** as the encryption key. When you store TOTP secrets, the system requires you to sign a message with your wallet - this signature becomes the encryption key for your 2FA data. This means your sensitive authentication codes are encrypted using the unique signature you generate, not your wallet address or private key, providing enhanced security and privacy. 
+
+**Frontend Independence**: Your TOTP codes remain accessible even when the frontend application is down, as your encrypted data is stored on decentralized IPFS with blockchain references, ensuring you can always retrieve your 2FA secrets using your wallet signature.
 
 
 **Familiar Experience, Enhanced Security**: Works exactly like Google Authenticator or Authy, but with the added benefits of:
@@ -33,6 +35,28 @@ Base Auth is a decentralized authenticator mini-app that combines IPFS storage w
 - **Maximum Privacy**: No raw secrets on blockchain, all encryption client-side
 - **Import/Export**: Migrate from Google Authenticator and other apps
 - **QR Code Support**: Scan and generate QR codes for easy setup
+
+## Frontend Independence: Accessing TOTP Codes When Frontend is Down
+
+Base Auth ensures your TOTP codes remain accessible and secure even when the frontend application is unavailable through a decentralized architecture that eliminates single points of failure. Your encrypted 2FA secrets are stored on IPFS (InterPlanetary File System) with immutable blockchain references, making them accessible through multiple pathways without depending on any centralized server or frontend application.
+
+**How It Works When Frontend is Down:**
+
+1. **Blockchain-Based Access**: Your wallet address serves as the key to retrieve your IPFS Content Identifier (CID) directly from the Base blockchain smart contract. The smart contract stores only the IPFS CID - no sensitive data is ever stored on-chain.
+
+2. **IPFS Decentralized Storage**: Your encrypted TOTP secrets are stored on IPFS, a distributed file system that operates independently of any single server. IPFS ensures data availability through multiple nodes across the network.
+
+3. **Signature-Based Decryption**: Your wallet signature (not your private key) is used to derive the encryption key for your TOTP secrets. This means you can decrypt your data using any compatible wallet that can sign the same message.
+
+4. **Manual Recovery Process**: If the frontend is unavailable, you can still access your TOTP codes by:
+   - Connecting your wallet to any Base-compatible interface
+   - Calling the smart contract's `getUserCID()` function to retrieve your IPFS CID
+   - Fetching your encrypted bundle directly from IPFS using the CID
+   - Signing the vault access message with your wallet to derive the decryption key
+   - Decrypting your TOTP secrets using the signature-derived key
+   - Generating TOTP codes using standard TOTP algorithms
+
+This architecture ensures that your TOTP codes remain accessible through the decentralized IPFS network and blockchain infrastructure, providing true ownership and control over your 2FA data regardless of frontend availability.
 
 ## Complete Data Flow & Architecture
 
