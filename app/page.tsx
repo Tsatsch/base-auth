@@ -19,7 +19,7 @@ import MigrationImport from "../components/MigrationImport";
 import ExportModal from "../components/ExportModal";
 import { ParsedMigrationAccount } from "../lib/googleAuthMigration";
 import { resolveBaseName, formatBaseName } from "../lib/basename";
-import { sendSponsoredTransaction, checkPaymasterSupport } from "../lib/paymaster";
+import { sendSponsoredTransaction } from "../lib/paymaster";
 
 interface DecryptedAccount {
   id: string;

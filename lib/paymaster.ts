@@ -1,4 +1,4 @@
-import { encodeFunctionData, numberToHex } from 'viem';
+import { encodeFunctionData, numberToHex, type Abi } from 'viem';
 import { base, baseSepolia } from 'viem/chains';
 
 const NETWORK = process.env.NEXT_PUBLIC_NETWORK || "testnet";
@@ -15,12 +15,13 @@ const CHAIN = NETWORK === "mainnet" ? base : baseSepolia;
  * @returns The transaction hash
  */
 export async function sendSponsoredTransaction(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   provider: any,
   fromAddress: string,
   contractAddress: string,
-  abi: any,
+  abi: Abi,
   functionName: string,
-  args: any[]
+  args: unknown[]
 ): Promise<string> {
   // Get paymaster service URL from environment
   const paymasterServiceUrl = process.env.NEXT_PUBLIC_PAYMASTER_SERVICE_URL;
@@ -71,6 +72,7 @@ export async function sendSponsoredTransaction(
  * @returns Whether paymaster is supported
  */
 export async function checkPaymasterSupport(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   provider: any,
   address: string
 ): Promise<boolean> {
