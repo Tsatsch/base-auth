@@ -15,9 +15,9 @@ export const minikitConfig = {
   },
   miniapp: {
     version: "1",
-    name: "Base Auth App", 
-    subtitle: "OnChain TwoFA Authenticator", 
-    description: "Secure onchain two factor authentication Two FA management for the Base blockchain. Store and manage your TwoFA secrets with blockchain security",
+    name: "Base Auth",
+    subtitle: "Decentralized 2FA Authenticator",
+    description: "Store and manage your 2FA secrets securely with blockchain-backed encryption.",
     screenshotUrls: [`${ROOT_URL}/base-auth-portrait.png`],
     iconUrl: `${ROOT_URL}/base-auth-icon.png`,
     splashImageUrl: `${ROOT_URL}/base-auth.png`,
@@ -26,12 +26,13 @@ export const minikitConfig = {
     webhookUrl: `${ROOT_URL}/api/webhook`,
     primaryCategory: "utility",
     tags: ["security", "2fa", "authentication", "crypto", "blockchain"],
-    heroImageUrl: `${ROOT_URL}/base-auth.png`, 
+    heroImageUrl: `${ROOT_URL}/base-auth.png`,
     tagline: "Secure your accounts on-chain",
-    ogTitle: "BaseAuth OnChain Authenticator",
-    ogDescription: "Secure two-factor authentication management on Base blockchain",
-    ogImageUrl: `${ROOT_URL}/base-auth.png`,
-  },
+    // Open Graph metadata for Farcaster preview
+    ogTitle: "Base Auth - Decentralized 2FA Authenticator",
+    ogDescription: "Your 2FA vault encrypted and secured on the Base blockchain.",
+    ogImageUrl: `${ROOT_URL}/base-auth-og.png`, // ensure this image is 1200x630 px recommended
+  },  
   /** baseBuilder: {
     ownerAddress: "0xA3a2Db8224a49FC803Dd1B004959e0Bf05f88Cfb"
   },*/
