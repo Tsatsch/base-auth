@@ -33,9 +33,9 @@ export const minikitConfig = {
     ogDescription: "Your 2FA vault encrypted and secured on the Base blockchain.",
     ogImageUrl: `${ROOT_URL}/base-auth-og.png`, // ensure this image is 1200x630 px recommended
   },  
-  /** baseBuilder: {
-    ownerAddress: "0xA3a2Db8224a49FC803Dd1B004959e0Bf05f88Cfb"
-  },*/
+  baseBuilder: {
+    ownerAddress: "0x9C59644F9323D86c1c49F2C40A0F7D48a3A19404"
+  },
 
 } as const;
 
