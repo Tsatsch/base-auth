@@ -17,6 +17,7 @@
     "@web-std/file": "^3.0.3",
     "browser-image-compression": "^2.0.2",
     "crypto-js": "^4.2.0",
+    "dotenv": "^17.2.3",
     "helia": "^6.0.2",
     "next": "15.3.4",
     "otpauth": "^9.4.1",
