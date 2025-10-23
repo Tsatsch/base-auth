@@ -437,11 +437,11 @@ export default function Home() {
       let txHash: `0x${string}` | undefined;
       console.log("🔍 Add Account Transaction Debug Info:");
       console.log("- Connector Client:", connectorClient ? "✅ Available" : "❌ Not available");
-      console.log("- Paymaster URL:", process.env.PAYMASTER_ENDPOINT_TESTNET ? "✅ Configured" : "❌ Not configured");
+      console.log("- Paymaster URL:", process.env.NEXT_PUBLIC_PAYMASTER_ENDPOINT_TESTNET ? "✅ Configured" : "❌ Not configured");
       console.log("- Bundle CID:", newBundleCID);
       
       try {
-        if (connectorClient && process.env.PAYMASTER_ENDPOINT_TESTNET) {
+        if (connectorClient && process.env.NEXT_PUBLIC_PAYMASTER_ENDPOINT_TESTNET) {
           console.log("🚀 Attempting paymaster-sponsored transaction...");
           const result = await sendSponsoredTransaction(
             connectorClient,
@@ -523,11 +523,11 @@ export default function Home() {
       let txHash: `0x${string}` | undefined;
       console.log("🔍 Delete Account Transaction Debug Info:");
       console.log("- Connector Client:", connectorClient ? "✅ Available" : "❌ Not available");
-      console.log("- Paymaster URL:", process.env.PAYMASTER_ENDPOINT_TESTNET ? "✅ Configured" : "❌ Not configured");
+      console.log("- Paymaster URL:", process.env.NEXT_PUBLIC_PAYMASTER_ENDPOINT_TESTNET ? "✅ Configured" : "❌ Not configured");
       console.log("- Bundle CID:", newBundleCID);
       
       try {
-        if (connectorClient && process.env.PAYMASTER_ENDPOINT_TESTNET) {
+        if (connectorClient && process.env.NEXT_PUBLIC_PAYMASTER_ENDPOINT_TESTNET) {
           console.log("🚀 Attempting paymaster-sponsored transaction...");
           const result = await sendSponsoredTransaction(
             connectorClient,
@@ -691,7 +691,7 @@ export default function Home() {
       // Try to use paymaster-sponsored transaction if available
       let txHash: `0x${string}` | undefined;
       try {
-        if (connectorClient && process.env.PAYMASTER_ENDPOINT_TESTNET) {
+        if (connectorClient && process.env.NEXT_PUBLIC_PAYMASTER_ENDPOINT_TESTNET) {
           const result = await sendSponsoredTransaction(
             connectorClient,
             address,

@@ -32,9 +32,10 @@ export async function sendSponsoredTransaction(
   console.log("- Contract Address:", contractAddress);
   console.log("- Function:", functionName);
   console.log("- Args:", args);
+  console.log("- Is Sponsored:", "✅ true");
   
   if (!paymasterServiceUrl) {
-    throw new Error("Paymaster service URL not configured. Please set PAYMASTER_ENDPOINT_TESTNET");
+    throw new Error("Paymaster service URL not configured. Please set NEXT_PUBLIC_PAYMASTER_ENDPOINT_TESTNET");
   }
 
   // Encode the function call
@@ -60,6 +61,7 @@ export async function sendSponsoredTransaction(
     chainId: numberToHex(CHAIN.id),
     from: fromAddress,
     calls,
+    isSponsored: true,
     capabilities: {
       paymasterService: {
         url: paymasterServiceUrl
