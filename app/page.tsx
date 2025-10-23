@@ -493,7 +493,7 @@ export default function Home() {
         }
       } catch (paymasterError) {
         // Check if user cancelled the sponsored transaction
-        if ((paymasterError as any)?.message === 'USER_CANCELLED') {
+        if ((paymasterError as Error)?.message === 'USER_CANCELLED') {
           console.log("👤 User cancelled sponsored transaction - operation cancelled");
           setIsLoading(false);
           setUploadingToIPFS(false);
@@ -588,7 +588,7 @@ export default function Home() {
         }
       } catch (paymasterError) {
         // Check if user cancelled the sponsored transaction
-        if ((paymasterError as any)?.message === 'USER_CANCELLED') {
+        if ((paymasterError as Error)?.message === 'USER_CANCELLED') {
           console.log("👤 User cancelled sponsored transaction - operation cancelled");
           setIsLoading(false);
           return; // Don't fall back to regular transaction
@@ -757,7 +757,7 @@ export default function Home() {
         }
       } catch (paymasterError) {
         // Check if user cancelled the sponsored transaction
-        if ((paymasterError as any)?.message === 'USER_CANCELLED') {
+        if ((paymasterError as Error)?.message === 'USER_CANCELLED') {
           console.log("👤 User cancelled sponsored transaction - operation cancelled");
           setIsLoading(false);
           return; // Don't fall back to regular transaction
