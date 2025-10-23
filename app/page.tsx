@@ -463,11 +463,11 @@ export default function Home() {
       let txHash: `0x${string}` | undefined;
       console.log("🔍 Add Account Transaction Debug Info:");
       console.log("- Connector Client:", connectorClient ? "✅ Available" : "❌ Not available");
-      console.log("- Paymaster URL:", process.env.PAYMASTER_ENDPOINT_TESTNET ? "✅ Configured" : "❌ Not configured");
+      console.log("- Paymaster URL:", process.env.NEXT_PUBLIC_PAYMASTER_ENDPOINT_TESTNET ? "✅ Configured" : "❌ Not configured");
       console.log("- Bundle CID:", newBundleCID);
       
       try {
-        if (connectorClient && process.env.PAYMASTER_ENDPOINT_TESTNET) {
+        if (connectorClient && process.env.NEXT_PUBLIC_PAYMASTER_ENDPOINT_TESTNET) {
           console.log("🚀 Attempting paymaster-sponsored transaction...");
           const result = await sendSponsoredTransaction(
             connectorClient,
@@ -492,9 +492,17 @@ export default function Home() {
           });
         }
       } catch (paymasterError) {
-        console.warn("Paymaster transaction failed, falling back to regular transaction:", paymasterError);
+        // Check if user cancelled the sponsored transaction
+        if ((paymasterError as any)?.message === 'USER_CANCELLED') {
+          console.log("👤 User cancelled sponsored transaction - operation cancelled");
+          setIsLoading(false);
+          setUploadingToIPFS(false);
+          return; // Don't fall back to regular transaction
+        }
+        
+        console.warn("❌ Paymaster transaction failed, falling back to regular transaction:", paymasterError);
         try {
-          // Fall back to regular transaction
+          // Fall back to regular transaction only for actual errors
           await writeContract({
             address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
             abi: AUTHENTICATOR_ABI,
@@ -550,11 +558,11 @@ export default function Home() {
       let txHash: `0x${string}` | undefined;
       console.log("🔍 Delete Account Transaction Debug Info:");
       console.log("- Connector Client:", connectorClient ? "✅ Available" : "❌ Not available");
-      console.log("- Paymaster URL:", process.env.PAYMASTER_ENDPOINT_TESTNET ? "✅ Configured" : "❌ Not configured");
+      console.log("- Paymaster URL:", process.env.NEXT_PUBLIC_PAYMASTER_ENDPOINT_TESTNET ? "✅ Configured" : "❌ Not configured");
       console.log("- Bundle CID:", newBundleCID);
       
       try {
-        if (connectorClient && process.env.PAYMASTER_ENDPOINT_TESTNET) {
+        if (connectorClient && process.env.NEXT_PUBLIC_PAYMASTER_ENDPOINT_TESTNET) {
           console.log("🚀 Attempting paymaster-sponsored transaction...");
           const result = await sendSponsoredTransaction(
             connectorClient,
@@ -579,7 +587,14 @@ export default function Home() {
           });
         }
       } catch (paymasterError) {
-        console.warn("Paymaster transaction failed, falling back to regular transaction:", paymasterError);
+        // Check if user cancelled the sponsored transaction
+        if ((paymasterError as any)?.message === 'USER_CANCELLED') {
+          console.log("👤 User cancelled sponsored transaction - operation cancelled");
+          setIsLoading(false);
+          return; // Don't fall back to regular transaction
+        }
+        
+        console.warn("❌ Paymaster transaction failed, falling back to regular transaction:", paymasterError);
         try {
           // Fall back to regular transaction
           await writeContract({
@@ -719,7 +734,7 @@ export default function Home() {
       // Try to use paymaster-sponsored transaction if available
       let txHash: `0x${string}` | undefined;
       try {
-        if (connectorClient && process.env.PAYMASTER_ENDPOINT_TESTNET) {
+        if (connectorClient && process.env.NEXT_PUBLIC_PAYMASTER_ENDPOINT_TESTNET) {
           const result = await sendSponsoredTransaction(
             connectorClient,
             address,
@@ -741,7 +756,14 @@ export default function Home() {
           });
         }
       } catch (paymasterError) {
-        console.warn("Paymaster transaction failed, falling back to regular transaction:", paymasterError);
+        // Check if user cancelled the sponsored transaction
+        if ((paymasterError as any)?.message === 'USER_CANCELLED') {
+          console.log("👤 User cancelled sponsored transaction - operation cancelled");
+          setIsLoading(false);
+          return; // Don't fall back to regular transaction
+        }
+        
+        console.warn("❌ Paymaster transaction failed, falling back to regular transaction:", paymasterError);
         try {
           // Fall back to regular transaction
           await writeContract({
