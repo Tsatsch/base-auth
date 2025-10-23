@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useMiniKit } from "@coinbase/onchainkit/minikit";
-import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnect, useWaitForTransactionReceipt, useSignMessage, useSwitchChain, useChainId } from "wagmi";
+import { useAccount, useWriteContract, useReadContract, useConnect, useDisconnect, useWaitForTransactionReceipt, useSignMessage, useSwitchChain, useChainId, useConnectorClient } from "wagmi";
 import { injected } from "wagmi/connectors";
 import { v4 as uuidv4 } from "uuid";
 import { base, baseSepolia } from "wagmi/chains";
@@ -19,6 +19,7 @@ import MigrationImport from "../components/MigrationImport";
 import ExportModal from "../components/ExportModal";
 import { ParsedMigrationAccount } from "../lib/googleAuthMigration";
 import { resolveBaseName, formatBaseName } from "../lib/basename";
+import { sendSponsoredTransaction } from "../lib/paymaster";
 
 interface DecryptedAccount {
   id: string;
@@ -39,6 +40,7 @@ export default function Home() {
   const { disconnect } = useDisconnect();
   const chainId = useChainId();
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain();
+  const { data: connectorClient } = useConnectorClient();
   
   const [accounts, setAccounts] = useState<DecryptedAccount[]>([]);
   const [timeRemaining, setTimeRemaining] = useState(30);
@@ -357,12 +359,39 @@ export default function Home() {
       const newBundleCID = await uploadBundleToIPFS(bundle, vaultSignature!, userBundleCID);
       setUploadingToIPFS(false);
 
-      await writeContract({
-        address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
-        abi: AUTHENTICATOR_ABI,
-        functionName: "setUserData",
-        args: [newBundleCID],
-      });
+      // Try to use paymaster-sponsored transaction if available
+      let txHash: `0x${string}` | undefined;
+      try {
+        if (connectorClient && process.env.NEXT_PUBLIC_PAYMASTER_SERVICE_URL) {
+          const result = await sendSponsoredTransaction(
+            connectorClient,
+            address,
+            AUTHENTICATOR_CONTRACT_ADDRESS,
+            AUTHENTICATOR_ABI,
+            "setUserData",
+            [newBundleCID]
+          );
+          txHash = result as `0x${string}`;
+          setPendingTxHash(txHash);
+        } else {
+          // Fall back to regular transaction
+          await writeContract({
+            address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+            abi: AUTHENTICATOR_ABI,
+            functionName: "setUserData",
+            args: [newBundleCID],
+          });
+        }
+      } catch (paymasterError) {
+        console.warn("Paymaster transaction failed, falling back to regular transaction:", paymasterError);
+        // Fall back to regular transaction
+        await writeContract({
+          address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+          abi: AUTHENTICATOR_ABI,
+          functionName: "setUserData",
+          args: [newBundleCID],
+        });
+      }
       
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -404,12 +433,39 @@ export default function Home() {
       
       const newBundleCID = await uploadBundleToIPFS(bundle, vaultSignature!, userBundleCID);
       
-      await writeContract({
-        address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
-        abi: AUTHENTICATOR_ABI,
-        functionName: "setUserData",
-        args: [newBundleCID],
-      });
+      // Try to use paymaster-sponsored transaction if available
+      let txHash: `0x${string}` | undefined;
+      try {
+        if (connectorClient && process.env.NEXT_PUBLIC_PAYMASTER_SERVICE_URL) {
+          const result = await sendSponsoredTransaction(
+            connectorClient,
+            address,
+            AUTHENTICATOR_CONTRACT_ADDRESS,
+            AUTHENTICATOR_ABI,
+            "setUserData",
+            [newBundleCID]
+          );
+          txHash = result as `0x${string}`;
+          setPendingTxHash(txHash);
+        } else {
+          // Fall back to regular transaction
+          await writeContract({
+            address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+            abi: AUTHENTICATOR_ABI,
+            functionName: "setUserData",
+            args: [newBundleCID],
+          });
+        }
+      } catch (paymasterError) {
+        console.warn("Paymaster transaction failed, falling back to regular transaction:", paymasterError);
+        // Fall back to regular transaction
+        await writeContract({
+          address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+          abi: AUTHENTICATOR_ABI,
+          functionName: "setUserData",
+          args: [newBundleCID],
+        });
+      }
 
     } catch {
       setIsLoading(false);
@@ -529,12 +585,39 @@ export default function Home() {
       const newBundleCID = await uploadBundleToIPFS(bundle, vaultSignature, userBundleCID);
       setUploadingToIPFS(false);
 
-      await writeContract({
-        address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
-        abi: AUTHENTICATOR_ABI,
-        functionName: "setUserData",
-        args: [newBundleCID],
-      });
+      // Try to use paymaster-sponsored transaction if available
+      let txHash: `0x${string}` | undefined;
+      try {
+        if (connectorClient && process.env.NEXT_PUBLIC_PAYMASTER_SERVICE_URL) {
+          const result = await sendSponsoredTransaction(
+            connectorClient,
+            address,
+            AUTHENTICATOR_CONTRACT_ADDRESS,
+            AUTHENTICATOR_ABI,
+            "setUserData",
+            [newBundleCID]
+          );
+          txHash = result as `0x${string}`;
+          setPendingTxHash(txHash);
+        } else {
+          // Fall back to regular transaction
+          await writeContract({
+            address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+            abi: AUTHENTICATOR_ABI,
+            functionName: "setUserData",
+            args: [newBundleCID],
+          });
+        }
+      } catch (paymasterError) {
+        console.warn("Paymaster transaction failed, falling back to regular transaction:", paymasterError);
+        // Fall back to regular transaction
+        await writeContract({
+          address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+          abi: AUTHENTICATOR_ABI,
+          functionName: "setUserData",
+          args: [newBundleCID],
+        });
+      }
 
       setShowMigrationImport(false);
       setMigrationAccounts([]);
