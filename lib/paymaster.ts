@@ -81,8 +81,23 @@ export async function sendSponsoredTransaction(
 
     console.log("✅ Sponsored transaction successful:", result);
     return result;
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ Paymaster transaction failed:", error);
+    
+    // Check if this is a user cancellation
+    const errorMessage = error?.message?.toLowerCase() || '';
+    const isUserCancellation = errorMessage.includes('user rejected') || 
+                               errorMessage.includes('user denied') || 
+                               errorMessage.includes('cancelled') ||
+                               errorMessage.includes('rejected') ||
+                               error?.code === 4001 ||
+                               error?.code === 'ACTION_REJECTED';
+    
+    if (isUserCancellation) {
+      console.log("👤 User cancelled sponsored transaction");
+      throw new Error('USER_CANCELLED');
+    }
+    
     throw error;
   }
 }

@@ -465,9 +465,17 @@ export default function Home() {
           });
         }
       } catch (paymasterError) {
-        console.warn("Paymaster transaction failed, falling back to regular transaction:", paymasterError);
+        // Check if user cancelled the sponsored transaction
+        if ((paymasterError as any)?.message === 'USER_CANCELLED') {
+          console.log("👤 User cancelled sponsored transaction - operation cancelled");
+          setIsLoading(false);
+          setUploadingToIPFS(false);
+          return; // Don't fall back to regular transaction
+        }
+        
+        console.warn("❌ Paymaster transaction failed, falling back to regular transaction:", paymasterError);
         try {
-          // Fall back to regular transaction
+          // Fall back to regular transaction only for actual errors
           await writeContract({
             address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
             abi: AUTHENTICATOR_ABI,
@@ -551,7 +559,14 @@ export default function Home() {
           });
         }
       } catch (paymasterError) {
-        console.warn("Paymaster transaction failed, falling back to regular transaction:", paymasterError);
+        // Check if user cancelled the sponsored transaction
+        if ((paymasterError as any)?.message === 'USER_CANCELLED') {
+          console.log("👤 User cancelled sponsored transaction - operation cancelled");
+          setIsLoading(false);
+          return; // Don't fall back to regular transaction
+        }
+        
+        console.warn("❌ Paymaster transaction failed, falling back to regular transaction:", paymasterError);
         try {
           // Fall back to regular transaction
           await writeContract({
@@ -712,7 +727,14 @@ export default function Home() {
           });
         }
       } catch (paymasterError) {
-        console.warn("Paymaster transaction failed, falling back to regular transaction:", paymasterError);
+        // Check if user cancelled the sponsored transaction
+        if ((paymasterError as any)?.message === 'USER_CANCELLED') {
+          console.log("👤 User cancelled sponsored transaction - operation cancelled");
+          setIsLoading(false);
+          return; // Don't fall back to regular transaction
+        }
+        
+        console.warn("❌ Paymaster transaction failed, falling back to regular transaction:", paymasterError);
         try {
           // Fall back to regular transaction
           await writeContract({
