@@ -100,6 +100,21 @@ export default function ExportModal({ accounts, onClose, isOpen }: ExportModalPr
     setShowDisclaimer(false);
   };
 
+  // Handle escape key for modal closing
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscapeKey);
+    }
+    
+    return () => document.removeEventListener('keydown', handleEscapeKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) {
     return null;
   }

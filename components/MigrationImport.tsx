@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ParsedMigrationAccount } from '../lib/googleAuthMigration';
 import styles from '../app/page.module.css';
 
@@ -22,6 +22,21 @@ export default function MigrationImport({
   const [selectedAccounts, setSelectedAccounts] = useState<Set<number>>(
     new Set(accounts.map((_, index) => index))
   );
+
+  // Handle escape key for modal closing
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen && !isLoading) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscapeKey);
+    }
+    
+    return () => document.removeEventListener('keydown', handleEscapeKey);
+  }, [isOpen, onClose, isLoading]);
 
   if (!isOpen) {
     return null;
@@ -51,7 +66,11 @@ export default function MigrationImport({
   };
 
   return (
-    <div className={styles.modal} onClick={onClose}>
+    <div className={styles.modal} onClick={() => {
+      if (!isLoading) {
+        onClose();
+      }
+    }}>
       <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
         <div className={styles.sheetHandle} aria-hidden />
         <div className={styles.modalHeader}>

@@ -64,6 +64,7 @@ export default function Home() {
   const [baseName, setBaseName] = useState<string | null>(null);
   const [isResolvingBaseName, setIsResolvingBaseName] = useState(false);
 
+
   useEffect(() => {
     if (!isFrameReady) {
       setFrameReady();
@@ -97,8 +98,65 @@ export default function Home() {
     }
   }, [isConnected, isFrameReady, connect]);
 
-  const { writeContract, data: writeData, error: _writeError, isPending: _isWritePending, reset: resetWrite } = useWriteContract();
+  const { writeContract, data: writeData, error: writeError, isPending: isWritePending, reset: resetWrite } = useWriteContract();
   const { signMessage, data: signature, error: signError, isPending: isSignPending } = useSignMessage();
+
+  // Function to reset application state after transaction cancellation or error
+  const resetApplicationState = useCallback(() => {
+    setIsLoading(false);
+    setUploadingToIPFS(false);
+    setPendingTxHash(undefined);
+    setError("");
+    resetWrite();
+  }, [resetWrite]);
+
+  // Function to safely close modals with state cleanup
+  const closeModalSafely = useCallback((modalType: 'add' | 'qr' | 'migration' | 'export') => {
+    if (isLoading || isWritePending) {
+      return; // Don't close during loading
+    }
+
+    switch (modalType) {
+      case 'add':
+        setShowAddModal(false);
+        setNewAccountName("");
+        setNewSecret("");
+        setLogoFile(null);
+        setLogoPreview(null);
+        setError("");
+        break;
+      case 'qr':
+        setShowQRScanner(false);
+        break;
+      case 'migration':
+        setShowMigrationImport(false);
+        setMigrationAccounts([]);
+        break;
+      case 'export':
+        setShowExportModal(false);
+        break;
+    }
+  }, [isLoading, isWritePending]);
+
+  // Handle escape key for modal closing
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (showAddModal) {
+          closeModalSafely('add');
+        } else if (showQRScanner) {
+          closeModalSafely('qr');
+        } else if (showMigrationImport) {
+          closeModalSafely('migration');
+        } else if (showExportModal) {
+          closeModalSafely('export');
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => document.removeEventListener('keydown', handleEscapeKey);
+  }, [showAddModal, showQRScanner, showMigrationImport, showExportModal, isLoading, isWritePending, closeModalSafely]);
 
   useEffect(() => {
     if (!isConnected) {
@@ -128,6 +186,14 @@ export default function Home() {
       setIsUnlocking(false);
     }
   }, [signError]);
+
+  // Handle write contract errors
+  useEffect(() => {
+    if (writeError) {
+      setError(`Transaction failed: ${writeError.message}`);
+      resetApplicationState();
+    }
+  }, [writeError, resetApplicationState]);
   
   useEffect(() => {
     if (writeData && !pendingTxHash) {
@@ -135,7 +201,7 @@ export default function Home() {
     }
   }, [writeData, pendingTxHash]);
   
-  const { isSuccess: isTxConfirmed, isLoading: isTxPending, data: _txReceipt } = useWaitForTransactionReceipt({
+  const { isSuccess: isTxConfirmed, isLoading: isTxPending, error: txError, data: _txReceipt } = useWaitForTransactionReceipt({
     hash: pendingTxHash,
     query: {
       enabled: !!pendingTxHash,
@@ -201,6 +267,14 @@ export default function Home() {
   useEffect(() => {
     loadAccounts();
   }, [loadAccounts]);
+
+  // Handle transaction errors
+  useEffect(() => {
+    if (txError) {
+      setError(`Transaction failed: ${txError.message}`);
+      resetApplicationState();
+    }
+  }, [txError, resetApplicationState]);
 
   useEffect(() => {
     if (isTxConfirmed && pendingTxHash) {
@@ -384,13 +458,17 @@ export default function Home() {
         }
       } catch (paymasterError) {
         console.warn("Paymaster transaction failed, falling back to regular transaction:", paymasterError);
-        // Fall back to regular transaction
-        await writeContract({
-          address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
-          abi: AUTHENTICATOR_ABI,
-          functionName: "setUserData",
-          args: [newBundleCID],
-        });
+        try {
+          // Fall back to regular transaction
+          await writeContract({
+            address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+            abi: AUTHENTICATOR_ABI,
+            functionName: "setUserData",
+            args: [newBundleCID],
+          });
+        } catch (fallbackError) {
+          throw new Error(`Both paymaster and regular transactions failed: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`);
+        }
       }
       
     } catch (err: unknown) {
@@ -458,16 +536,25 @@ export default function Home() {
         }
       } catch (paymasterError) {
         console.warn("Paymaster transaction failed, falling back to regular transaction:", paymasterError);
-        // Fall back to regular transaction
-        await writeContract({
-          address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
-          abi: AUTHENTICATOR_ABI,
-          functionName: "setUserData",
-          args: [newBundleCID],
-        });
+        try {
+          // Fall back to regular transaction
+          await writeContract({
+            address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+            abi: AUTHENTICATOR_ABI,
+            functionName: "setUserData",
+            args: [newBundleCID],
+          });
+        } catch (fallbackError) {
+          throw new Error(`Both paymaster and regular transactions failed: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`);
+        }
       }
 
-    } catch {
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(`Failed to delete account: ${err.message}`);
+      } else {
+        setError("Failed to delete account. Please try again.");
+      }
       setIsLoading(false);
     }
   };
@@ -610,13 +697,17 @@ export default function Home() {
         }
       } catch (paymasterError) {
         console.warn("Paymaster transaction failed, falling back to regular transaction:", paymasterError);
-        // Fall back to regular transaction
-        await writeContract({
-          address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
-          abi: AUTHENTICATOR_ABI,
-          functionName: "setUserData",
-          args: [newBundleCID],
-        });
+        try {
+          // Fall back to regular transaction
+          await writeContract({
+            address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
+            abi: AUTHENTICATOR_ABI,
+            functionName: "setUserData",
+            args: [newBundleCID],
+          });
+        } catch (fallbackError) {
+          throw new Error(`Both paymaster and regular transactions failed: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`);
+        }
       }
 
       setShowMigrationImport(false);
@@ -820,14 +911,15 @@ export default function Home() {
       )}
 
       {showAddModal && (
-        <div className={styles.modal} onClick={() => setShowAddModal(false)}>
+        <div className={styles.modal} onClick={() => closeModalSafely('add')}>
           <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <div className={styles.sheetHandle} aria-hidden />
             <div className={styles.modalHeader}>
               <h2 className={styles.modalTitle}>Add 2FA Account</h2>
               <button
                 className={styles.closeButton}
-                onClick={() => setShowAddModal(false)}
+                onClick={() => closeModalSafely('add')}
+                disabled={isLoading || isWritePending}
                 type="button"
               >
                 ✕

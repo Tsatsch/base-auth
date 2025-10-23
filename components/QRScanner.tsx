@@ -75,6 +75,18 @@ export default function QRScanner({ onScanSuccess, onClose, isOpen }: QRScannerP
     };
   }, [isOpen, cameraSupported, onScanSuccess]);
 
+  // Handle escape key for modal closing
+  useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => document.removeEventListener('keydown', handleEscapeKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) {
     return null;
   }
