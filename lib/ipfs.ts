@@ -205,13 +205,9 @@ export async function uploadImageToIPFS(file: File, _accountName: string): Promi
 }
 
 export function getIPFSImageURL(cid: string): string {
-  const gateway = process.env.NEXT_PUBLIC_PINATA_GATEWAY;
-  
-  if (!gateway) {
-    throw new Error('Pinata Gateway not configured');
-  }
-
-  return `https://${gateway}/ipfs/${cid}`;
+  // Use public gateways instead of requiring Pinata configuration
+  // Default to ipfs.io for images, but could be made configurable
+  return `https://ipfs.io/ipfs/${cid}`;
 }
 
 async function getFileIdFromCID(cid: string): Promise<string | null> {
@@ -282,6 +278,49 @@ export async function uploadBundleToIPFS(
   }
 }
 
+// Public IPFS gateways for decentralized access
+// Verified working gateways as of 2024
+const PUBLIC_IPFS_GATEWAYS = [
+  'https://ipfs.io/ipfs/',                    // IPFS Foundation - most reliable
+  'https://dweb.link/ipfs/',                  // IPFS Foundation - subdomain resolution
+  'https://cloudflare-ipfs.com/ipfs/',         // Cloudflare - high performance
+  'https://gateway.pinata.cloud/ipfs/',       // Pinata - reliable commercial service
+  'https://trustless-gateway.link/ipfs/',      // IPFS Foundation - trustless/verifiable
+  'https://ipfs.filebase.io/ipfs/'            // Filebase - additional redundancy
+];
+
+async function fetchFromPublicGateways(cid: string): Promise<EncryptedBundle | UserTOTPBundle> {
+  const errors: string[] = [];
+  
+  for (const gateway of PUBLIC_IPFS_GATEWAYS) {
+    try {
+      const response = await fetch(`${gateway}${cid}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        // Add timeout to prevent hanging
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data;
+      } else {
+        errors.push(`${gateway}: HTTP ${response.status}`);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      errors.push(`${gateway}: ${errorMsg}`);
+      console.log(`Gateway ${gateway} failed: ${errorMsg}`);
+    }
+  }
+  
+  throw new Error(
+    `Failed to retrieve from all public gateways. Errors: ${errors.join(', ')}`
+  );
+}
+
 export async function retrieveBundleFromIPFS(cid: string, signature: string): Promise<UserTOTPBundle> {
   if (!cid) {
     throw new Error('IPFS CID is required');
@@ -292,13 +331,11 @@ export async function retrieveBundleFromIPFS(cid: string, signature: string): Pr
   }
 
   try {
-    const pinata = getPinataClient();
-
-    const data = await pinata.gateways.public.get(cid);
-
-    const rawData = (typeof data.data === 'string' ? JSON.parse(data.data) : data.data);
+    // Use public gateways instead of Pinata-specific gateway
+    const rawData = await fetchFromPublicGateways(cid);
     
-    if (rawData.version === 2 && rawData.encryptedData) {
+    // Check if it's an encrypted bundle (version 2)
+    if ('version' in rawData && rawData.version === 2 && 'encryptedData' in rawData) {
       const encryptedBundle = rawData as EncryptedBundle;
       
       const decryptedBundle = await decryptBundleGCM(
@@ -314,6 +351,7 @@ export async function retrieveBundleFromIPFS(cid: string, signature: string): Pr
 
       return decryptedBundle;
     } else {
+      // Assume it's a UserTOTPBundle (legacy format)
       const bundle = rawData as UserTOTPBundle;
       
       if (!bundle.accounts || !Array.isArray(bundle.accounts)) {
@@ -324,17 +362,18 @@ export async function retrieveBundleFromIPFS(cid: string, signature: string): Pr
     }
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message.includes('404')) {
+      if (error.message.includes('404') || error.message.includes('not found')) {
         throw new Error(
           `IPFS bundle not found: ${cid}. ` +
-          'The content may not be pinned or may have been unpinned.'
+          'The content may not be available on any public gateway yet. ' +
+          'Try again in a few minutes as content propagates through the network.'
         );
       }
 
-      if (error.message.includes('Gateway timeout')) {
+      if (error.message.includes('timeout') || error.message.includes('Gateway timeout')) {
         throw new Error(
-          'IPFS Gateway timeout. Please try again in a moment. ' +
-          'The content may still be propagating through the network.'
+          'IPFS Gateway timeout. The content may still be propagating through the network. ' +
+          'Please try again in a moment.'
         );
       }
 

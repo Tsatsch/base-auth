@@ -19,6 +19,30 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: '**.mypinata.cloud',
       },
+      {
+        protocol: 'https',
+        hostname: 'ipfs.io',
+      },
+      {
+        protocol: 'https',
+        hostname: 'dweb.link',
+      },
+      {
+        protocol: 'https',
+        hostname: 'cloudflare-ipfs.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'gateway.pinata.cloud',
+      },
+      {
+        protocol: 'https',
+        hostname: 'trustless-gateway.link',
+      },
+      {
+        protocol: 'https',
+        hostname: 'ipfs.filebase.io',
+      },
     ],
   },
 };
