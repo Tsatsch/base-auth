@@ -26,8 +26,15 @@ export async function sendSponsoredTransaction(
   // Get paymaster service URL from environment
   const paymasterServiceUrl = process.env.PAYMASTER_ENDPOINT_TESTNET;
   
+  console.log("🔧 Paymaster Debug Info:");
+  console.log("- Paymaster URL:", paymasterServiceUrl ? "✅ Configured" : "❌ Not configured");
+  console.log("- From Address:", fromAddress);
+  console.log("- Contract Address:", contractAddress);
+  console.log("- Function:", functionName);
+  console.log("- Args:", args);
+  
   if (!paymasterServiceUrl) {
-    throw new Error("Paymaster service URL not configured. Please set NEXT_PUBLIC_PAYMASTER_SERVICE_URL");
+    throw new Error("Paymaster service URL not configured. Please set PAYMASTER_ENDPOINT_TESTNET");
   }
 
   // Encode the function call
@@ -36,6 +43,8 @@ export async function sendSponsoredTransaction(
     functionName,
     args,
   });
+
+  console.log("- Encoded Data:", data);
 
   // Prepare the transaction call
   const calls = [
@@ -46,23 +55,34 @@ export async function sendSponsoredTransaction(
     }
   ];
 
-  // Send the transaction with paymaster capabilities
-  const result = await provider.request({
-    method: 'wallet_sendCalls',
-    params: [{
-      version: '1.0',
-      chainId: numberToHex(CHAIN.id),
-      from: fromAddress,
-      calls,
-      capabilities: {
-        paymasterService: {
-          url: paymasterServiceUrl
-        }
+  const walletSendCallsParams = {
+    version: '1.0',
+    chainId: numberToHex(CHAIN.id),
+    from: fromAddress,
+    calls,
+    capabilities: {
+      paymasterService: {
+        url: paymasterServiceUrl
       }
-    }]
-  });
+    }
+  };
 
-  return result;
+  console.log("- Wallet SendCalls Params:", JSON.stringify(walletSendCallsParams, null, 2));
+
+  try {
+    // Send the transaction with paymaster capabilities
+    console.log("🚀 Sending sponsored transaction...");
+    const result = await provider.request({
+      method: 'wallet_sendCalls',
+      params: [walletSendCallsParams]
+    });
+
+    console.log("✅ Sponsored transaction successful:", result);
+    return result;
+  } catch (error) {
+    console.error("❌ Paymaster transaction failed:", error);
+    throw error;
+  }
 }
 
 /**

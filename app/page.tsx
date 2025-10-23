@@ -361,8 +361,14 @@ export default function Home() {
 
       // Try to use paymaster-sponsored transaction if available
       let txHash: `0x${string}` | undefined;
+      console.log("🔍 Add Account Transaction Debug Info:");
+      console.log("- Connector Client:", connectorClient ? "✅ Available" : "❌ Not available");
+      console.log("- Paymaster URL:", process.env.PAYMASTER_ENDPOINT_TESTNET ? "✅ Configured" : "❌ Not configured");
+      console.log("- Bundle CID:", newBundleCID);
+      
       try {
-        if (connectorClient && process.env.NEXT_PUBLIC_PAYMASTER_SERVICE_URL) {
+        if (connectorClient && process.env.PAYMASTER_ENDPOINT_TESTNET) {
+          console.log("🚀 Attempting paymaster-sponsored transaction...");
           const result = await sendSponsoredTransaction(
             connectorClient,
             address,
@@ -373,7 +379,9 @@ export default function Home() {
           );
           txHash = result as `0x${string}`;
           setPendingTxHash(txHash);
+          console.log("✅ Paymaster transaction successful:", txHash);
         } else {
+          console.log("⚠️ Paymaster not available, using regular transaction...");
           // Fall back to regular transaction
           await writeContract({
             address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
@@ -383,7 +391,7 @@ export default function Home() {
           });
         }
       } catch (paymasterError) {
-        console.warn("Paymaster transaction failed, falling back to regular transaction:", paymasterError);
+        console.warn("❌ Paymaster transaction failed, falling back to regular transaction:", paymasterError);
         // Fall back to regular transaction
         await writeContract({
           address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
@@ -435,8 +443,14 @@ export default function Home() {
       
       // Try to use paymaster-sponsored transaction if available
       let txHash: `0x${string}` | undefined;
+      console.log("🔍 Delete Account Transaction Debug Info:");
+      console.log("- Connector Client:", connectorClient ? "✅ Available" : "❌ Not available");
+      console.log("- Paymaster URL:", process.env.PAYMASTER_ENDPOINT_TESTNET ? "✅ Configured" : "❌ Not configured");
+      console.log("- Bundle CID:", newBundleCID);
+      
       try {
-        if (connectorClient && process.env.NEXT_PUBLIC_PAYMASTER_SERVICE_URL) {
+        if (connectorClient && process.env.PAYMASTER_ENDPOINT_TESTNET) {
+          console.log("🚀 Attempting paymaster-sponsored transaction...");
           const result = await sendSponsoredTransaction(
             connectorClient,
             address,
@@ -447,7 +461,9 @@ export default function Home() {
           );
           txHash = result as `0x${string}`;
           setPendingTxHash(txHash);
+          console.log("✅ Paymaster transaction successful:", txHash);
         } else {
+          console.log("⚠️ Paymaster not available, using regular transaction...");
           // Fall back to regular transaction
           await writeContract({
             address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
@@ -457,7 +473,7 @@ export default function Home() {
           });
         }
       } catch (paymasterError) {
-        console.warn("Paymaster transaction failed, falling back to regular transaction:", paymasterError);
+        console.warn("❌ Paymaster transaction failed, falling back to regular transaction:", paymasterError);
         // Fall back to regular transaction
         await writeContract({
           address: AUTHENTICATOR_CONTRACT_ADDRESS as `0x${string}`,
@@ -588,7 +604,7 @@ export default function Home() {
       // Try to use paymaster-sponsored transaction if available
       let txHash: `0x${string}` | undefined;
       try {
-        if (connectorClient && process.env.NEXT_PUBLIC_PAYMASTER_SERVICE_URL) {
+        if (connectorClient && process.env.PAYMASTER_ENDPOINT_TESTNET) {
           const result = await sendSponsoredTransaction(
             connectorClient,
             address,
