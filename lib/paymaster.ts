@@ -24,7 +24,7 @@ export async function sendSponsoredTransaction(
   args: unknown[]
 ): Promise<string> {
   // Get paymaster service URL from environment
-  const paymasterServiceUrl = process.env.PAYMASTER_ENDPOINT_TESTNET;
+  const paymasterServiceUrl = process.env.NEXT_PUBLIC_PAYMASTER_ENDPOINT_TESTNET;
   
   console.log("🔧 Paymaster Debug Info:");
   console.log("- Paymaster URL:", paymasterServiceUrl ? "✅ Configured" : "❌ Not configured");
