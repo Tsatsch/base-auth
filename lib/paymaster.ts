@@ -24,7 +24,7 @@ export async function sendSponsoredTransaction(
   args: unknown[]
 ): Promise<string> {
   // Get paymaster service URL from environment
-  const paymasterServiceUrl = process.env.PAYMASTER_ENDPOINT_TESTNET;
+  const paymasterServiceUrl = process.env.NEXT_PUBLIC_PAYMASTER_ENDPOINT_TESTNET;
   
   if (!paymasterServiceUrl) {
     throw new Error("Paymaster service URL not configured. Please set NEXT_PUBLIC_PAYMASTER_SERVICE_URL");
