@@ -57,6 +57,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingToIPFS, setUploadingToIPFS] = useState(false);
   const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | undefined>();
+  const [isSponsoredTransaction, setIsSponsoredTransaction] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [vaultSignature, setVaultSignature] = useState<string | null>(null);
   const [isVaultUnlocked, setIsVaultUnlocked] = useState(false);
@@ -106,6 +107,7 @@ export default function Home() {
     setIsLoading(false);
     setUploadingToIPFS(false);
     setPendingTxHash(undefined);
+    setIsSponsoredTransaction(false);
     setError("");
     resetWrite();
   }, [resetWrite]);
@@ -204,7 +206,7 @@ export default function Home() {
   const { isSuccess: isTxConfirmed, isLoading: isTxPending, error: txError, data: _txReceipt } = useWaitForTransactionReceipt({
     hash: pendingTxHash,
     query: {
-      enabled: !!pendingTxHash,
+      enabled: !!pendingTxHash && !isSponsoredTransaction,
     },
   });
   
@@ -282,6 +284,7 @@ export default function Home() {
         await refetchUserData();
         
         setPendingTxHash(undefined);
+        setIsSponsoredTransaction(false);
         resetWrite();
         setShowAddModal(false);
         setNewAccountName("");
@@ -293,6 +296,29 @@ export default function Home() {
       }, 2000);
     }
   }, [isTxConfirmed, pendingTxHash, address, refetchUserData, resetWrite]);
+
+  // Handle sponsored transaction completion differently
+  useEffect(() => {
+    if (isSponsoredTransaction && pendingTxHash) {
+      console.log("🎯 Sponsored transaction detected, handling completion...");
+      // For sponsored transactions, we might not need to wait for confirmation
+      // or the confirmation might be handled differently
+      setTimeout(async () => {
+        console.log("✅ Sponsored transaction completed, refreshing user data...");
+        await refetchUserData();
+        
+        setPendingTxHash(undefined);
+        setIsSponsoredTransaction(false);
+        setShowAddModal(false);
+        setNewAccountName("");
+        setNewSecret("");
+        setLogoFile(null);
+        setLogoPreview(null);
+        setIsLoading(false);
+        setUploadingToIPFS(false);
+      }, 3000); // Slightly longer delay for sponsored transactions
+    }
+  }, [isSponsoredTransaction, pendingTxHash, address, refetchUserData]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -453,6 +479,7 @@ export default function Home() {
           );
           txHash = result as `0x${string}`;
           setPendingTxHash(txHash);
+          setIsSponsoredTransaction(true);
           console.log("✅ Paymaster transaction successful:", txHash);
         } else {
           console.log("⚠️ Paymaster not available, using regular transaction...");
@@ -539,6 +566,7 @@ export default function Home() {
           );
           txHash = result as `0x${string}`;
           setPendingTxHash(txHash);
+          setIsSponsoredTransaction(true);
           console.log("✅ Paymaster transaction successful:", txHash);
         } else {
           console.log("⚠️ Paymaster not available, using regular transaction...");
@@ -702,6 +730,7 @@ export default function Home() {
           );
           txHash = result as `0x${string}`;
           setPendingTxHash(txHash);
+          setIsSponsoredTransaction(true);
         } else {
           // Fall back to regular transaction
           await writeContract({
@@ -783,7 +812,7 @@ export default function Home() {
 
       {isTxPending && (
         <div className={styles.toast} role="status" aria-live="polite">
-          Pending transaction
+          {isSponsoredTransaction ? "Processing sponsored transaction..." : "Pending transaction"}
         </div>
       )}
 

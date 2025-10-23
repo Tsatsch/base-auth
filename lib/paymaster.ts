@@ -78,7 +78,17 @@ export async function sendSponsoredTransaction(
     });
 
     console.log("✅ Sponsored transaction successful:", result);
-    return result;
+    
+    // wallet_sendCalls returns an object with batchId and txHashes
+    // We need to extract the first transaction hash
+    if (result && result.txHashes && result.txHashes.length > 0) {
+      return result.txHashes[0];
+    } else if (typeof result === 'string') {
+      // Some implementations might return the hash directly
+      return result;
+    } else {
+      throw new Error("Unexpected response format from wallet_sendCalls");
+    }
   } catch (error) {
     console.error("❌ Paymaster transaction failed:", error);
     throw error;
