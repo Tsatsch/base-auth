@@ -1,0 +1,29 @@
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOjIyNzczMCwidHlwZSI6ImN1c3RvZHkiLCJrZXkiOiIweDliNUUzN0UzNTBGNjZBMkYzNGU4NUMzOEQwYTM3NDc4ZDQxYWYzOUIifQ",
+    "payload": "eyJkb21haW4iOiJiYXNlLWF1dGgtb3JjaW4udmVyY2VsLmFwcCJ9",
+    "signature": "MHg3NDg0YmIyZjVlMTdjYjI3NzAzOGI1YzZjOTQwOGZlMmZjZWIwNDRiNDJkMTIwNGNjYzBmZjc3MzUzYTFiNjI4NTFjZTRlODNjZTk0NDEyYjExNDdjNjUxZDc1ZTA4NzA0MjlkNjFhNDFkMTRlNzdkNWVkZTRiNDg1YWY1ZTM5ZDFj"
+  },
+  "miniapp": {
+    "version": "1",
+    "name": "Base Auth",
+    "subtitle": "Decentralized Authenticator",
+    "description": "Store and manage your Two Factor Authentication secrets securely with blockchain backed encryption",
+    "screenshotUrls": ["https://base-auth-orcin.vercel.app/base-auth-portrait.png"],
+    "iconUrl": "https://base-auth-orcin.vercel.app/base-auth-icon.png",
+    "splashImageUrl": "https://base-auth-orcin.vercel.app/base-auth.png",
+    "splashBackgroundColor": "#FFFFFF",
+    "homeUrl": "https://base-auth-orcin.vercel.app",
+    "webhookUrl": "https://base-auth-orcin.vercel.app/api/webhook",
+    "primaryCategory": "utility",
+    "tags": ["security", "2fa", "authentication", "crypto", "blockchain"],
+    "heroImageUrl": "https://base-auth-orcin.vercel.app/base-auth.png",
+    "tagline": "Secure your accounts on-chain",
+    "ogTitle": "Base Auth - 2FA Authenticator",
+    "ogDescription": "Your 2FA vault encrypted and secured on the Base blockchain.",
+    "ogImageUrl": "https://base-auth-orcin.vercel.app/base-auth-og.png"
+  },
+  "baseBuilder": {
+    "ownerAddress": "0x158269BCA81eC78cd07bb725dC4DA65d14Fe8C0f"
+  }
+}
