@@ -16,8 +16,8 @@ export const minikitConfig = {
   miniapp: {
     version: "1",
     name: "Base Auth",
-    subtitle: "Decentralized 2FA Authenticator",
-    description: "Store and manage your 2FA secrets securely with blockchain-backed encryption.",
+    subtitle: "Decentralized Authenticator",
+    description: "Store and manage your Two Factor Authentication secrets securely with blockchain backed encryption",
     screenshotUrls: [`${ROOT_URL}/base-auth-portrait.png`],
     iconUrl: `${ROOT_URL}/base-auth-icon.png`,
     splashImageUrl: `${ROOT_URL}/base-auth.png`,
@@ -29,7 +29,7 @@ export const minikitConfig = {
     heroImageUrl: `${ROOT_URL}/base-auth.png`,
     tagline: "Secure your accounts on-chain",
     // Open Graph metadata for Farcaster preview
-    ogTitle: "Base Auth - Decentralized 2FA Authenticator",
+    ogTitle: "Base Auth - 2FA Authenticator",
     ogDescription: "Your 2FA vault encrypted and secured on the Base blockchain.",
     ogImageUrl: `${ROOT_URL}/base-auth-og.png`, // ensure this image is 1200x630 px recommended
   },  
