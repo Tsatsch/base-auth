@@ -34,7 +34,7 @@ export const minikitConfig = {
     ogImageUrl: `${ROOT_URL}/base-auth-og.png`, // ensure this image is 1200x630 px recommended
   },  
   baseBuilder: {
-    ownerAddress: "0x9C59644F9323D86c1c49F2C40A0F7D48a3A19404"
+    ownerAddress: "0x158269BCA81eC78cd07bb725dC4DA65d14Fe8C0f"
   },
 
 } as const;
